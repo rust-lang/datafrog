@@ -33,15 +33,33 @@ pub struct Relation<Tuple: Ord> {
 
 impl<Tuple: Ord> Relation<Tuple> {
     /// Merges two relations into their union.
-    pub fn merge(mut self, mut other: Self) -> Self {
-        let mut vec = Vec::with_capacity(self.len() + other.len());
-        vec.extend(self.elements.drain(..));
-        vec.extend(other.elements.drain(..));
-        vec.sort();
-        vec.dedup();
-        Relation {
-            elements: vec
+    pub fn merge(self, other: Self) -> Self {
+
+        let mut elements1 = self.elements;
+        let mut elements2 = other.elements;
+
+        // Ensure elements1.cap() >= elements2.cap().
+        if elements1.capacity() < elements2.capacity() {
+            ::std::mem::swap(&mut elements1, &mut elements2);
         }
+
+        // Merge results either in spare capacity or new vector.
+        let mut elements =
+        if elements1.len() + elements2.len() < elements1.capacity() {
+            elements1.extend(elements2.into_iter());
+            elements1
+        }
+        else {
+            let mut vec = Vec::with_capacity(elements1.len() + elements2.len());
+            vec.extend(elements1.into_iter());
+            vec.extend(elements2.into_iter());
+            vec
+        };
+
+        // Sort, dedup, and return.
+        elements.sort();
+        elements.dedup();
+        Relation { elements }
     }
 }
 

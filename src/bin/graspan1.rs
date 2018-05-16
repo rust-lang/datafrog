@@ -3,6 +3,8 @@ use datafrog::Iteration;
 
 fn main() {
 
+    let timer = ::std::time::Instant::now();
+
     // Make space for input data.
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
@@ -28,6 +30,8 @@ fn main() {
         }
     }
 
+    println!("{:?}\tData loaded", timer.elapsed());
+
     // Create a new iteration context, ...
     let mut iteration = Iteration::new();
 
@@ -46,5 +50,7 @@ fn main() {
     }
 
     // let _reachable = variable1.complete();
+
+    println!("{:?}\tComputation complete", timer.elapsed());
 
 }
