@@ -3,9 +3,11 @@ use datalog::Iteration;
 
 fn main() {
 
+    // Make space for input data.
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
 
+    // Read input data from a handy file.
     use std::io::{BufRead, BufReader};
     use std::fs::File;
 
@@ -26,21 +28,23 @@ fn main() {
         }
     }
 
+    // Create a new iteration context, ...
     let mut iteration = Iteration::new();
 
+    // .. some variables, ..
     let variable1 = iteration.variable::<(u32,u32)>("nodes");
     let variable2 = iteration.variable::<(u32,u32)>("edges");
 
+    // .. load them with some initial values, ..
     variable1.insert(nodes.into());
     variable2.insert(edges.into());
 
+    // .. and then start iterating rules!
     while iteration.changed() {
-
         // N(a,c) <-  N(a,b), E(b,c)
         variable1.from_join(&variable1, &variable2, |_b, &a, &c| (c,a));
-
     }
 
-    let reachable = variable1.complete();
+    // let _reachable = variable1.complete();
 
 }
