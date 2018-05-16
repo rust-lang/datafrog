@@ -1,5 +1,5 @@
-extern crate datalog;
-use datalog::Iteration;
+extern crate datafrog;
+use datafrog::Iteration;
 
 fn main() {
 

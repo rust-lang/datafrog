@@ -10,18 +10,14 @@ pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord, F: Fn(&Key, &Val1,
 
     let mut results = Vec::new();
 
-    // Read-only access to each variable.
-    let tuples1 = input1.tuples.borrow();
-    let tuples2 = input2.tuples.borrow();
-
     let recent1 = input1.recent.borrow();
     let recent2 = input2.recent.borrow();
 
-    for batch2 in tuples2.iter() {
+    for batch2 in input2.tuples.borrow().iter() {
         join_helper(&recent1, &batch2, |k,v1,v2| results.push(logic(k,v1,v2)));
     }
 
-    for batch1 in tuples1.iter() {
+    for batch1 in input1.tuples.borrow().iter() {
         join_helper(&batch1, &recent2, |k,v1,v2| results.push(logic(k,v1,v2)));
     }
 

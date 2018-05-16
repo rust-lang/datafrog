@@ -22,6 +22,7 @@ mod join;
 /// A relation represents a fixed set of key-value pairs. In many places in a
 /// Datalog computation we want to be sure that certain relations are not able
 /// to vary (for example, in antijoins).
+#[derive(Eq, PartialEq)]
 pub struct Relation<Tuple: Ord> {
     /// Wrapped elements in the relation.
     ///
@@ -44,8 +45,9 @@ impl<Tuple: Ord> Relation<Tuple> {
     }
 }
 
-impl<Tuple: Ord> From<Vec<Tuple>> for Relation<Tuple> {
-    fn from(mut elements: Vec<Tuple>) -> Self {
+impl<Tuple: Ord, I: IntoIterator<Item=Tuple>> From<I> for Relation<Tuple> {
+    fn from(iterator: I) -> Self {
+        let mut elements: Vec<Tuple> = iterator.into_iter().collect();
         elements.sort_unstable();
         Relation { elements }
     }
@@ -121,6 +123,28 @@ pub struct Variable<Tuple: Ord> {
 // Operator implementations.
 impl<Tuple: Ord> Variable<Tuple> {
     /// Adds tuples that result from joining `input1` and `input2`.
+    ///
+    /// # Examples
+    ///
+    /// This example starts a collection with the pairs (x, x+1) and (x+1, x) for x in 0 .. 10.
+    /// It then adds pairs (y, z) for which (x, y) and (x, z) are present. Because the initial
+    /// pairs are symmetric, this should result in all pairs (x, y) for x and y in 0 .. 11.
+    ///
+    /// ```
+    /// use datafrog::*;
+    ///
+    /// let mut iteration = Iteration::new();
+    /// let variable = iteration.variable::<(usize, usize)>("source");
+    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x + 1))));
+    /// variable.insert(Relation::from((0 .. 10).map(|x| (x + 1, x))));
+    ///
+    /// while iteration.changed() {
+    ///     variable.from_join(&variable, &variable, |&key, &val1, &val2| (val1, val2));
+    /// }
+    ///
+    /// let result = variable.complete();
+    /// assert_eq!(result.len(), 121);
+    /// ```
     pub fn from_join<K: Ord,V1: Ord, V2: Ord, F: Fn(&K,&V1,&V2)->Tuple>(
         &self,
         input1: &Variable<(K,V1)>,
@@ -129,7 +153,30 @@ impl<Tuple: Ord> Variable<Tuple> {
     {
         join::join_into(input1, input2, self, logic)
     }
-    /// Adds tuples that result from antijoining `input1` and `input2`.
+    /// Adds tuples from `input1` whose key is not present in `input2`.
+    ///
+    /// # Examples
+    ///
+    /// This example starts a collection with the pairs (x, x+1) for x in 0 .. 10. It then
+    /// adds any pairs (x+1,x) for which x is not a multiple of three. That excludes four
+    /// pairs (for 0, 3, 6, and 9) which should leave us with 16 total pairs.
+    ///
+    /// ```
+    /// use datafrog::*;
+    ///
+    /// let mut iteration = Iteration::new();
+    /// let variable = iteration.variable::<(usize, usize)>("source");
+    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x + 1))));
+    ///
+    /// let relation = Relation::from((0 .. 10).filter(|x| x % 3 == 0));
+    ///
+    /// while iteration.changed() {
+    ///     variable.from_antijoin(&variable, &relation, |&key, &val| (val, key));
+    /// }
+    ///
+    /// let result = variable.complete();
+    /// assert_eq!(result.len(), 16);
+    /// ```
     pub fn from_antijoin<K: Ord,V: Ord, F: Fn(&K,&V)->Tuple>(
         &self,
         input1: &Variable<(K,V)>,
@@ -139,6 +186,36 @@ impl<Tuple: Ord> Variable<Tuple> {
         join::antijoin_into(input1, input2, self, logic)
     }
     /// Adds tuples that result from mapping `input`.
+    ///
+    /// # Examples
+    ///
+    /// This example starts a collection with the pairs (x, x) for x in 0 .. 10. It then
+    /// repeatedly adds any pairs (x, z) for (x, y) in the collection, where z is the Collatz
+    /// step for y: it is y/2 if y is even, and 3*y + 1 if y is odd. This produces all of the
+    /// pairs (x, y) where x visits y as part of its Collatz journey.
+    ///
+    /// ```
+    /// use datafrog::*;
+    ///
+    /// let mut iteration = Iteration::new();
+    /// let variable = iteration.variable::<(usize, usize)>("source");
+    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x))));
+    ///
+    /// let relation = Relation::from((0 .. 10).filter(|x| x % 3 == 0));
+    ///
+    /// while iteration.changed() {
+    ///     variable.from_map(&variable, |&(key, val)|
+    ///         if val % 2 == 0 {
+    ///             (key, val/2)
+    ///         }
+    ///         else {
+    ///             (key, 3*val + 1)
+    ///         });
+    /// }
+    ///
+    /// let result = variable.complete();
+    /// assert_eq!(result.len(), 74);
+    /// ```
     pub fn from_map<T2: Ord, F: Fn(&T2)->Tuple>(&self, input: &Variable<T2>, logic: F) {
         map::map_into(input, self, logic)
     }
@@ -218,12 +295,12 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
             *self.recent.borrow_mut() = to_add;
         }
 
-        let mut total = 0;
-        for tuple in self.tuples.borrow().iter() {
-            total += tuple.len();
-        }
+        // let mut total = 0;
+        // for tuple in self.tuples.borrow().iter() {
+        //     total += tuple.len();
+        // }
 
-        println!("Variable\t{}\t{}\t{}", self.name, total, self.recent.borrow().len());
+        // println!("Variable\t{}\t{}\t{}", self.name, total, self.recent.borrow().len());
 
         !self.recent.borrow().is_empty()
     }
