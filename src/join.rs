@@ -1,3 +1,5 @@
+//! Join functionality.
+
 use super::{Variable, Relation};
 
 pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord, F: Fn(&Key, &Val1, &Val2)->Result>(
@@ -28,6 +30,7 @@ pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord, F: Fn(&Key, &Val1,
     output.insert(results.into());
 }
 
+/// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
 pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord, F: Fn(&Key, &Val)->Result>(
     input1: &Variable<(Key, Val)>,
     input2: &Relation<Key>,

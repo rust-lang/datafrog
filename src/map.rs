@@ -1,3 +1,5 @@
+//! Map functionality.
+
 use super::Variable;
 
 pub fn map_into<T1: Ord, T2: Ord, F: Fn(&T1)->T2>(

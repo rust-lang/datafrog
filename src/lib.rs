@@ -1,10 +1,15 @@
-//! A lightweight Datalog executor in Rust
+//! A lightweight Datalog engine in Rust
 //!
-//! The intended design is that there are static relations, perhaps described
-//! by sorted `Vec<(Key, Val)>` lists, at which point you can make an iterative
-//! context in which you can name variables, define computations, and bind the
-//! results to named variables.
+//! The intended design is that one has static `Relation` types that are sets
+//! of tuples, and `Variable` types that represent monotonically increasing
+//! sets of tuples.
 //!
+//! The types are mostly wrappers around `Vec<Tuple>` indicating sorted-ness,
+//! and the intent is that this code can be dropped in the middle of an otherwise
+//! normal Rust program, run to completion, and then the results extracted as
+//! vectors again.
+
+#![forbid(missing_docs)]
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -18,6 +23,10 @@ mod join;
 /// Datalog computation we want to be sure that certain relations are not able
 /// to vary (for example, in antijoins).
 pub struct Relation<Tuple: Ord> {
+    /// Wrapped elements in the relation.
+    ///
+    /// It is crucial that if this type is constructed manually, this field be
+    /// sorted, and it is probably important that all elements be distinct.
     pub elements: Vec<Tuple>
 }
 
@@ -87,14 +96,30 @@ pub trait VariableTrait {
 }
 
 /// An monotonically increasing set of `Tuple`s.
+///
+/// The design here is that there are three types of tuples: i. those that have been
+/// processed by all operators that can access the variable, ii. those that should now
+/// be processed by all operators that can access the variable, and iii. those that
+/// have only just been added and should eventually be promoted to type ii. (but which
+/// are currently hidden).
+///
+/// Each time `self.changed()` is called, the `recent` relation is folded into `tuples`,
+/// and the `to_add` relations are merged, deduplicated against `tuples`, and then made
+/// `recent`. This way, across calls to `changed()` all added relations are at some point
+/// in `recent` once and eventually all are in `tuples`.
 pub struct Variable<Tuple: Ord> {
+    /// A useful name for the variable.
     pub name: String,
+    /// A list of relations whose union are the accepted tuples.
     pub tuples: Rc<RefCell<Vec<Relation<Tuple>>>>,
+    /// A list of recent tuples, still to be processed.
     pub recent: Rc<RefCell<Relation<Tuple>>>,
+    /// A list of future tuples, to be introduced.
     pub to_add: Rc<RefCell<Vec<Relation<Tuple>>>>,
 }
 
 impl<Tuple: Ord> Variable<Tuple> {
+    /// Adds tuples that result from joining `input1` and `input2`.
     pub fn from_join<K: Ord,V1: Ord, V2: Ord, F: Fn(&K,&V1,&V2)->Tuple>(
         &self,
         input1: &Variable<(K,V1)>,
@@ -103,6 +128,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     {
         join::join_into(input1, input2, self, logic)
     }
+    /// Adds tuples that result from antijoining `input1` and `input2`.
     pub fn from_antijoin<K: Ord,V: Ord, F: Fn(&K,&V)->Tuple>(
         &self,
         input1: &Variable<(K,V)>,
@@ -111,7 +137,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     {
         join::antijoin_into(input1, input2, self, logic)
     }
-
+    /// Adds tuples that result from mapping `input`.
     pub fn from_map<T2: Ord, F: Fn(&T2)->Tuple>(&self, input: &Variable<T2>, logic: F) {
         map::map_into(input, self, logic)
     }
@@ -137,9 +163,20 @@ impl<Tuple: Ord> Variable<Tuple> {
             to_add: Rc::new(RefCell::new(Vec::new().into())),
         }
     }
+    /// Inserts a relation into the variable.
+    ///
+    /// This is most commonly used to load initial values into a variable.
+    /// it is not obvious that it should be commonly used otherwise, but
+    /// it should not be harmful.
     pub fn insert(&self, relation: Relation<Tuple>) {
         self.to_add.borrow_mut().push(relation);
     }
+    /// Consumes the variable and returns a relation.
+    ///
+    /// This method removes the ability for the variable to develop, and
+    /// flattens all internal tuples down to one relation. The method
+    /// asserts that iteration has completed, in that `self.recent` and
+    /// `self.to_add` should both be empty.
     pub fn complete(self) -> Relation<Tuple> {
 
         assert!(self.recent.borrow().is_empty());
