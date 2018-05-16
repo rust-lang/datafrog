@@ -118,6 +118,7 @@ pub struct Variable<Tuple: Ord> {
     pub to_add: Rc<RefCell<Vec<Relation<Tuple>>>>,
 }
 
+// Operator implementations.
 impl<Tuple: Ord> Variable<Tuple> {
     /// Adds tuples that result from joining `input1` and `input2`.
     pub fn from_join<K: Ord,V1: Ord, V2: Ord, F: Fn(&K,&V1,&V2)->Tuple>(

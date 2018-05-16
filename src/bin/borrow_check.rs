@@ -20,6 +20,7 @@ fn main() {
         let subset_r2p = iteration1.variable::<((Region, Point), Region)>("subset_r2p");
         let subset_p = iteration1.variable::<(Point, (Region, Region))>("subset_p");
 
+        // temporaries as we perform a multi-way join.
         let subset_1 = iteration1.variable::<((Region, Point), Region)>("subset_1");
         let subset_2 = iteration1.variable::<((Region, Point), Region)>("subset_2");
 

@@ -42,7 +42,7 @@ pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord, F: Fn(&Key, &Val)->Result>
 
     for &(ref key, ref val) in input1.recent.borrow().iter() {
         tuples2 = gallop(tuples2, |k| k < key);
-        if tuples2.first() == Some(key) {
+        if tuples2.first() != Some(key) {
             results.push(logic(key, val));
         }
     }
