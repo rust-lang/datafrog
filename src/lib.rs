@@ -149,7 +149,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// pairs are symmetric, this should result in all pairs (x, y) for x and y in 0 .. 11.
     ///
     /// ```
-    /// use datafrog::*;
+    /// use datafrog::{Iteration, Relation};
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
@@ -180,7 +180,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// pairs (for 0, 3, 6, and 9) which should leave us with 16 total pairs.
     ///
     /// ```
-    /// use datafrog::*;
+    /// use datafrog::{Iteration, Relation};
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
@@ -213,7 +213,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// pairs (x, y) where x visits y as part of its Collatz journey.
     ///
     /// ```
-    /// use datafrog::*;
+    /// use datafrog::{Iteration, Relation};
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
@@ -294,7 +294,9 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
             let last = self.tuples.borrow_mut().pop().unwrap();
             recent = recent.merge(last);
         }
-        self.tuples.borrow_mut().push(recent);
+        if !recent.is_empty() {
+            self.tuples.borrow_mut().push(recent);
+        }
 
         // 2. Move self.to_add into self.recent.
         let to_add = self.to_add.borrow_mut().pop();

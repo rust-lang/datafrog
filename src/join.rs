@@ -43,9 +43,7 @@ pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord, F: Fn(&Key, &Val)->Result>
         }
     }
 
-    // elements should be in-order, as just a filter.
-    let relation = Relation { elements: results };
-    output.insert(relation);
+    output.insert(results.into());
 }
 
 fn join_helper<K: Ord, V1, V2, F: FnMut(&K, &V1, &V2)>(mut slice1: &[(K,V1)], mut slice2: &[(K,V2)], mut result: F) {
@@ -54,12 +52,12 @@ fn join_helper<K: Ord, V1, V2, F: FnMut(&K, &V1, &V2)>(mut slice1: &[(K,V1)], mu
 
         if slice1[0].0 == slice2[0].0 {
 
-            let mut key1_count = 0;
+            let mut key1_count = 1;
             while key1_count < slice1.len() && slice1[0].0 == slice1[key1_count].0 {
                 key1_count += 1;
             }
 
-            let mut key2_count = 0;
+            let mut key2_count = 1;
             while key2_count < slice2.len() && slice2[0].0 == slice2[key2_count].0 {
                 key2_count += 1;
             }

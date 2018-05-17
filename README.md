@@ -25,11 +25,11 @@ fn main() {
 
     // .. and then start iterating rules!
     while iteration.changed() {
-        // nodes(a,c) <-  nodes(a,b), edges(b,c)
+        // nodes(a,c)  <-  nodes(a,b), edges(b,c)
         nodes_var.from_join(&nodes_var, &edges_var, |_b, &a, &c| (c,a));
     }
 
-    // extract a `Vec<(u32,u32)>` containing the final results.
-    let reachable = variable.complete();
+    // extract the final results.
+    let reachable: Vec<(u32,u32)> = variable.complete();
 }
 ```
