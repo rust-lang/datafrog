@@ -107,6 +107,16 @@ impl Iteration {
         self.variables.push(Box::new(variable.clone()));
         variable
     }
+    /// Creates a new named variable associated with the iterative context.
+    ///
+    /// This variable will not be maintained distinctly, and may advertise tuples as
+    /// recent multiple times (perhaps unboundedly many times).
+    pub fn variable_indistinct<Tuple: Ord+'static>(&mut self, name: &str) -> Variable<Tuple> {
+        let mut variable = Variable::new(name);
+        variable.distinct = false;
+        self.variables.push(Box::new(variable.clone()));
+        variable
+    }
 }
 
 /// A type that can report on whether it has changed.
@@ -128,6 +138,8 @@ pub trait VariableTrait {
 /// `recent`. This way, across calls to `changed()` all added relations are at some point
 /// in `recent` once and eventually all are in `tuples`.
 pub struct Variable<Tuple: Ord> {
+    /// Should the variable be maintained distinctly.
+    pub distinct: bool,
     /// A useful name for the variable.
     pub name: String,
     /// A list of relations whose union are the accepted tuples.
@@ -242,6 +254,7 @@ impl<Tuple: Ord> Variable<Tuple> {
 impl<Tuple: Ord> Clone for Variable<Tuple> {
     fn clone(&self) -> Self {
         Variable {
+            distinct: self.distinct,
             name: self.name.clone(),
             tuples: self.tuples.clone(),
             recent: self.recent.clone(),
@@ -253,6 +266,7 @@ impl<Tuple: Ord> Clone for Variable<Tuple> {
 impl<Tuple: Ord> Variable<Tuple> {
     fn new(name: &str) -> Self {
         Variable {
+            distinct: true,
             name: name.to_string(),
             tuples: Rc::new(RefCell::new(Vec::new().into())),
             recent: Rc::new(RefCell::new(Vec::new().into())),
@@ -305,12 +319,14 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
                 to_add = to_add.merge(to_add_more);
             }
             // 2b. Restrict `to_add` to tuples not in `self.tuples`.
-            for batch in self.tuples.borrow().iter() {
-                let mut slice = &batch[..];
-                to_add.elements.retain(|x| {
-                    slice = join::gallop(slice, |y| y < x);
-                    slice.len() == 0 || &slice[0] != x
-                })
+            if self.distinct {
+                for batch in self.tuples.borrow().iter() {
+                    let mut slice = &batch[..];
+                    to_add.elements.retain(|x| {
+                        slice = join::gallop(slice, |y| y < x);
+                        slice.len() == 0 || &slice[0] != x
+                    })
+                }
             }
             *self.recent.borrow_mut() = to_add;
         }
