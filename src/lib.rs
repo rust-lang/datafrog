@@ -22,12 +22,8 @@ mod join;
 /// A relation represents a fixed set of key-value pairs. In many places in a
 /// Datalog computation we want to be sure that certain relations are not able
 /// to vary (for example, in antijoins).
-#[derive(Eq, PartialEq)]
 pub struct Relation<Tuple: Ord> {
-    /// Wrapped elements in the relation.
-    ///
-    /// It is crucial that if this type is constructed manually, this field be
-    /// sorted, and it is probably important that all elements be distinct.
+    /// Sorted list of distinct tuples.
     pub elements: Vec<Tuple>
 }
 
@@ -61,13 +57,18 @@ impl<Tuple: Ord> Relation<Tuple> {
         elements.dedup();
         Relation { elements }
     }
+
+    fn from_vec(mut elements: Vec<Tuple>) -> Self {
+        elements.sort_unstable();
+        elements.dedup();
+        Relation { elements }
+    }
+
 }
 
 impl<Tuple: Ord, I: IntoIterator<Item=Tuple>> From<I> for Relation<Tuple> {
     fn from(iterator: I) -> Self {
-        let mut elements: Vec<Tuple> = iterator.into_iter().collect();
-        elements.sort_unstable();
-        Relation { elements }
+        Relation::from_vec(iterator.into_iter().collect())
     }
 }
 
@@ -120,34 +121,39 @@ impl Iteration {
 }
 
 /// A type that can report on whether it has changed.
-pub trait VariableTrait {
+trait VariableTrait {
     /// Reports whether the variable has changed since it was last asked.
     fn changed(&mut self) -> bool;
 }
 
 /// An monotonically increasing set of `Tuple`s.
 ///
-/// The design here is that there are three types of tuples: i. those that have been
-/// processed by all operators that can access the variable, ii. those that should now
-/// be processed by all operators that can access the variable, and iii. those that
-/// have only just been added and should eventually be promoted to type ii. (but which
-/// are currently hidden).
+/// There are three stages in the lifecycle of a tuple:
+///
+///   1. A tuple is added to `self.to_add`, but is not yet visible externally.
+///   2. Newly added tuples are then promoted to `self.recent` for one iteration.
+///   3. After one iteration, recent tuples are moved to `self.tuples` for posterity.
 ///
 /// Each time `self.changed()` is called, the `recent` relation is folded into `tuples`,
-/// and the `to_add` relations are merged, deduplicated against `tuples`, and then made
-/// `recent`. This way, across calls to `changed()` all added relations are at some point
-/// in `recent` once and eventually all are in `tuples`.
+/// and the `to_add` relations are merged, potentially deduplicated against `tuples`, and
+/// then made  `recent`. This way, across calls to `changed()` all added tuples are in
+/// `recent` at least once and eventually all are in `tuples`.
+///
+/// A `Variable` may optionally be instructed not to de-duplicate its tuples, for reasons
+/// of performance. Such a variable cannot be relied on to terminate iterative computation,
+/// and it is important that any cycle of derivations have at least one de-duplicating
+/// variable on it.
 pub struct Variable<Tuple: Ord> {
     /// Should the variable be maintained distinctly.
-    pub distinct: bool,
+    distinct: bool,
     /// A useful name for the variable.
-    pub name: String,
+    name: String,
     /// A list of relations whose union are the accepted tuples.
-    pub tuples: Rc<RefCell<Vec<Relation<Tuple>>>>,
+    stable: Rc<RefCell<Vec<Relation<Tuple>>>>,
     /// A list of recent tuples, still to be processed.
-    pub recent: Rc<RefCell<Relation<Tuple>>>,
+    recent: Rc<RefCell<Relation<Tuple>>>,
     /// A list of future tuples, to be introduced.
-    pub to_add: Rc<RefCell<Vec<Relation<Tuple>>>>,
+    to_add: Rc<RefCell<Vec<Relation<Tuple>>>>,
 }
 
 // Operator implementations.
@@ -256,7 +262,7 @@ impl<Tuple: Ord> Clone for Variable<Tuple> {
         Variable {
             distinct: self.distinct,
             name: self.name.clone(),
-            tuples: self.tuples.clone(),
+            stable: self.stable.clone(),
             recent: self.recent.clone(),
             to_add: self.to_add.clone(),
         }
@@ -268,7 +274,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         Variable {
             distinct: true,
             name: name.to_string(),
-            tuples: Rc::new(RefCell::new(Vec::new().into())),
+            stable: Rc::new(RefCell::new(Vec::new().into())),
             recent: Rc::new(RefCell::new(Vec::new().into())),
             to_add: Rc::new(RefCell::new(Vec::new().into())),
         }
@@ -292,7 +298,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         assert!(self.recent.borrow().is_empty());
         assert!(self.to_add.borrow().is_empty());
         let mut result: Relation<Tuple> = Vec::new().into();
-        while let Some(batch) = self.tuples.borrow_mut().pop() {
+        while let Some(batch) = self.stable.borrow_mut().pop() {
             result = result.merge(batch);
         }
         result
@@ -302,14 +308,14 @@ impl<Tuple: Ord> Variable<Tuple> {
 impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
     fn changed(&mut self) -> bool {
 
-        // 1. Merge self.recent into self.tuples.
-        let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), Vec::new().into());
-        while self.tuples.borrow().last().map(|x| x.len() <= 2 * recent.len()) == Some(true) {
-            let last = self.tuples.borrow_mut().pop().unwrap();
-            recent = recent.merge(last);
-        }
-        if !recent.is_empty() {
-            self.tuples.borrow_mut().push(recent);
+        // 1. Merge self.recent into self.stable.
+        if !self.recent.borrow().is_empty() {
+            let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), Vec::new().into());
+            while self.stable.borrow().last().map(|x| x.len() <= 2 * recent.len()) == Some(true) {
+                let last = self.stable.borrow_mut().pop().unwrap();
+                recent = recent.merge(last);
+            }
+            self.stable.borrow_mut().push(recent);
         }
 
         // 2. Move self.to_add into self.recent.
@@ -318,14 +324,25 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
             while let Some(to_add_more) = self.to_add.borrow_mut().pop() {
                 to_add = to_add.merge(to_add_more);
             }
-            // 2b. Restrict `to_add` to tuples not in `self.tuples`.
+            // 2b. Restrict `to_add` to tuples not in `self.stable`.
             if self.distinct {
-                for batch in self.tuples.borrow().iter() {
+                for batch in self.stable.borrow().iter() {
                     let mut slice = &batch[..];
-                    to_add.elements.retain(|x| {
-                        slice = join::gallop(slice, |y| y < x);
-                        slice.len() == 0 || &slice[0] != x
-                    })
+                    // Only gallop if the slice is relatively large.
+                    if slice.len() > 4 * to_add.elements.len() {
+                        to_add.elements.retain(|x| {
+                            slice = join::gallop(slice, |y| y < x);
+                            slice.len() == 0 || &slice[0] != x
+                        });
+                    }
+                    else {
+                        to_add.elements.retain(|x| {
+                            while slice.len() > 0 && &slice[0] < x {
+                                slice = &slice[1..];
+                            }
+                            slice.len() == 0 || &slice[0] != x
+                        });
+                    }
                 }
             }
             *self.recent.borrow_mut() = to_add;
@@ -341,3 +358,13 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
         !self.recent.borrow().is_empty()
     }
 }
+
+// impl<Tuple: Ord> Drop for Variable<Tuple> {
+//     fn drop(&mut self) {
+//         let mut total = 0;
+//         for batch in self.tuples.borrow().iter() {
+//             total += batch.len();
+//         }
+//         println!("FINAL: {:?}\t{:?}", self.name, total);
+//     }
+// }

@@ -49,8 +49,8 @@ fn main() {
         variable1.from_join(&variable1, &variable2, |_b, &a, &c| (c,a));
     }
 
-    // let _reachable = variable1.complete();
+    let reachable = variable1.complete();
 
-    println!("{:?}\tComputation complete", timer.elapsed());
+    println!("{:?}\tComputation complete (nodes_final: {})", timer.elapsed(), reachable.len());
 
 }

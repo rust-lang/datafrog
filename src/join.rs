@@ -13,17 +13,17 @@ pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord, F: Fn(&Key, &Val1,
     let recent1 = input1.recent.borrow();
     let recent2 = input2.recent.borrow();
 
-    for batch2 in input2.tuples.borrow().iter() {
+    for batch2 in input2.stable.borrow().iter() {
         join_helper(&recent1, &batch2, |k,v1,v2| results.push(logic(k,v1,v2)));
     }
 
-    for batch1 in input1.tuples.borrow().iter() {
+    for batch1 in input1.stable.borrow().iter() {
         join_helper(&batch1, &recent2, |k,v1,v2| results.push(logic(k,v1,v2)));
     }
 
     join_helper(&recent1, &recent2, |k,v1,v2| results.push(logic(k,v1,v2)));
 
-    output.insert(results.into());
+    output.insert(Relation::from_vec(results));
 }
 
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
@@ -43,50 +43,45 @@ pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord, F: Fn(&Key, &Val)->Result>
         }
     }
 
-    output.insert(results.into());
+    output.insert(Relation::from_vec(results));
 }
 
 fn join_helper<K: Ord, V1, V2, F: FnMut(&K, &V1, &V2)>(mut slice1: &[(K,V1)], mut slice2: &[(K,V2)], mut result: F) {
 
     while !slice1.is_empty() && !slice2.is_empty() {
 
-        if slice1[0].0 == slice2[0].0 {
+        use std::cmp::Ordering;
 
-            let mut key1_count = 1;
-            while key1_count < slice1.len() && slice1[0].0 == slice1[key1_count].0 {
-                key1_count += 1;
-            }
+        // If the keys match produce tuples, else advance the smaller key until they might.
+        match slice1[0].0.cmp(&slice2[0].0) {
+            Ordering::Less => {
+                slice1 = gallop(slice1, |x| x.0 < slice2[0].0);
+            },
+            Ordering::Equal => {
 
-            let mut key2_count = 1;
-            while key2_count < slice2.len() && slice2[0].0 == slice2[key2_count].0 {
-                key2_count += 1;
-            }
+                // Determine the number of matching keys in each slice.
+                let count1 = slice1.iter().take_while(|x| x.0 == slice1[0].0).count();
+                let count2 = slice2.iter().take_while(|x| x.0 == slice2[0].0).count();
 
-            for index1 in 0 .. key1_count {
-                for index2 in 0 .. key2_count {
-                    result(&slice1[0].0, &slice1[index1].1, &slice2[index2].1);
+                // Produce results from the cross-product of matches.
+                for index1 in 0 .. count1 {
+                    for index2 in 0 .. count2 {
+                        result(&slice1[0].0, &slice1[index1].1, &slice2[index2].1);
+                    }
                 }
+
+                // Advance slices past this key.
+                slice1 = &slice1[count1..];
+                slice2 = &slice2[count2..];
             }
-
-            slice1 = &slice1[key1_count..];
-            slice2 = &slice2[key2_count..];
-
-        }
-        else {
-
-            if slice1[0].0 < slice2[0].0 {
-                slice1 = gallop(slice1, |x| &x.0 < &slice2[0].0);
+            Ordering::Greater => {
+                slice2 = gallop(slice2, |x| x.0 < slice1[0].0);
             }
-            else {
-                slice2 = gallop(slice2, |x| &x.0 < &slice1[0].0);
-            }
-
         }
     }
 }
 
-#[inline(always)]
-pub fn gallop<'a, T, F: Fn(&T)->bool>(mut slice: &'a [T], cmp: F) -> &'a [T] {
+pub fn gallop<T, F: Fn(&T)->bool>(mut slice: &[T], cmp: F) -> &[T] {
     // if empty slice, or already >= element, return
     if slice.len() > 0 && cmp(&slice[0]) {
         let mut step = 1;

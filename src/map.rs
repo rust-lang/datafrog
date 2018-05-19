@@ -1,6 +1,6 @@
 //! Map functionality.
 
-use super::Variable;
+use super::{Variable, Relation};
 
 pub fn map_into<T1: Ord, T2: Ord, F: Fn(&T1)->T2>(
     input: &Variable<T1>,
@@ -13,5 +13,5 @@ pub fn map_into<T1: Ord, T2: Ord, F: Fn(&T1)->T2>(
         results.push(logic(tuple));
     }
 
-    output.insert(results.into());
+    output.insert(Relation::from_vec(results));
 }
