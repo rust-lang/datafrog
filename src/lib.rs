@@ -285,7 +285,9 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// it is not obvious that it should be commonly used otherwise, but
     /// it should not be harmful.
     pub fn insert(&self, relation: Relation<Tuple>) {
-        self.to_add.borrow_mut().push(relation);
+        if !relation.is_empty() {
+            self.to_add.borrow_mut().push(relation);
+        }
     }
     /// Consumes the variable and returns a relation.
     ///
