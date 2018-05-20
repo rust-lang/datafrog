@@ -34,27 +34,77 @@ impl<Tuple: Ord> Relation<Tuple> {
         let mut elements1 = self.elements;
         let mut elements2 = other.elements;
 
-        // Ensure elements1.cap() >= elements2.cap().
-        if elements1.capacity() < elements2.capacity() {
-            ::std::mem::swap(&mut elements1, &mut elements2);
+        // If one of the element lists is zero-length, we don't need to do any work
+        if elements1.len() == 0 {
+            return Relation { elements: elements2 };
+        }
+        if elements2.len() == 0 {
+            return Relation { elements: elements1 };
         }
 
-        // Merge results either in spare capacity or new vector.
-        let mut elements =
-        if elements1.len() + elements2.len() < elements1.capacity() {
+        // Make sure that elements1 starts with the lower element
+        // Will not panic since both collections must have at least 1 element at this point
+        if elements1[0] > elements2[0] {
+            std::mem::swap(&mut elements1, &mut elements2);
+        }
+
+        // Fast path for when all the new elements are after the exiting ones
+        if elements1[elements1.len() - 1] < elements2[0] {
             elements1.extend(elements2.into_iter());
-            elements1
+            // println!("fast path");
+            return Relation { elements: elements1 };
         }
-        else {
-            let mut vec = Vec::with_capacity(elements1.len() + elements2.len());
-            vec.extend(elements1.into_iter());
-            vec.extend(elements2.into_iter());
-            vec
-        };
 
-        // Sort, dedup, and return.
-        elements.sort();
-        elements.dedup();
+        let mut elements = Vec::with_capacity(elements1.len() + elements2.len());
+        let mut elements1 = elements1.drain(..);
+        let mut elements2 = elements2.drain(..).peekable();
+        // let mut from_1 = 0;
+        // let mut from_2 = 0;
+
+        elements.push(elements1.next().unwrap());
+        // from_1 += 1;
+
+        for elem in elements1 {
+            loop {
+                // Pull everything out of elements2 that is less than the thing
+                // we're about to insert into elements from elements1
+                use std::cmp::Ordering;
+                let cmpres = match elements2.peek() {
+                    None => Ordering::Greater,
+                    Some(e2) => e2.cmp(&elem)
+                };
+
+                match cmpres {
+                    Ordering::Greater => break,
+                    Ordering::Equal => {
+                        // consume without pushing
+                        elements2.next();
+                    },
+                    Ordering::Less => {
+                        let tp = elements2.next().unwrap();
+                        if elements[elements.len() - 1] == tp {
+                            // Don't push duplicates
+                            continue;
+                        }
+                        elements.push(tp);
+                    }
+                }
+            }
+            if elements[elements.len() - 1] == elem {
+                // Don't push duplicates
+                continue;
+            }
+            elements.push(elem);
+        }
+        // Finish draining second list
+        for elem in elements2 {
+            if elements[elements.len() - 1] == elem {
+                continue;
+            }
+            // from_2 += 1;
+            elements.push(elem);
+        }
+
         Relation { elements }
     }
 
