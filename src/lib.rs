@@ -149,9 +149,9 @@ pub struct Variable<Tuple: Ord> {
     /// A useful name for the variable.
     name: String,
     /// A list of relations whose union are the accepted tuples.
-    stable: Rc<RefCell<Vec<Relation<Tuple>>>>,
+    pub stable: Rc<RefCell<Vec<Relation<Tuple>>>>,
     /// A list of recent tuples, still to be processed.
-    recent: Rc<RefCell<Relation<Tuple>>>,
+    pub recent: Rc<RefCell<Relation<Tuple>>>,
     /// A list of future tuples, to be introduced.
     to_add: Rc<RefCell<Vec<Relation<Tuple>>>>,
 }
@@ -181,11 +181,11 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<K: Ord,V1: Ord, V2: Ord, F: Fn(&K,&V1,&V2)->Tuple>(
+    pub fn from_join<K: Ord,V1: Ord, V2: Ord>(
         &self,
         input1: &Variable<(K,V1)>,
         input2: &Variable<(K,V2)>,
-        logic: F)
+        logic: impl FnMut(&K,&V1,&V2)->Tuple)
     {
         join::join_into(input1, input2, self, logic)
     }
@@ -213,11 +213,11 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 16);
     /// ```
-    pub fn from_antijoin<K: Ord,V: Ord, F: Fn(&K,&V)->Tuple>(
+    pub fn from_antijoin<K: Ord, V: Ord>(
         &self,
         input1: &Variable<(K,V)>,
         input2: &Relation<K>,
-        logic: F)
+        logic: impl FnMut(&K,&V)->Tuple)
     {
         join::antijoin_into(input1, input2, self, logic)
     }
@@ -252,7 +252,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 74);
     /// ```
-    pub fn from_map<T2: Ord, F: Fn(&T2)->Tuple>(&self, input: &Variable<T2>, logic: F) {
+    pub fn from_map<T2: Ord>(&self, input: &Variable<T2>, logic: impl FnMut(&T2)->Tuple) {
         map::map_into(input, self, logic)
     }
 }
@@ -351,7 +351,7 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
         }
 
         // let mut total = 0;
-        // for tuple in self.tuples.borrow().iter() {
+        // for tuple in self.stable.borrow().iter() {
         //     total += tuple.len();
         // }
 
@@ -364,7 +364,7 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
 // impl<Tuple: Ord> Drop for Variable<Tuple> {
 //     fn drop(&mut self) {
 //         let mut total = 0;
-//         for batch in self.tuples.borrow().iter() {
+//         for batch in self.stable.borrow().iter() {
 //             total += batch.len();
 //         }
 //         println!("FINAL: {:?}\t{:?}", self.name, total);

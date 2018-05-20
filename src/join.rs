@@ -2,36 +2,41 @@
 
 use super::{Variable, Relation};
 
-pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord, F: Fn(&Key, &Val1, &Val2)->Result>(
+pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     input1: &Variable<(Key, Val1)>,
     input2: &Variable<(Key, Val2)>,
     output: &Variable<Result>,
-    logic: F) {
+    mut logic: impl FnMut(&Key, &Val1, &Val2)->Result) {
 
     let mut results = Vec::new();
 
     let recent1 = input1.recent.borrow();
     let recent2 = input2.recent.borrow();
 
-    for batch2 in input2.stable.borrow().iter() {
-        join_helper(&recent1, &batch2, |k,v1,v2| results.push(logic(k,v1,v2)));
-    }
+    {   // scoped to let `closure` drop borrow of `results`.
 
-    for batch1 in input1.stable.borrow().iter() {
-        join_helper(&batch1, &recent2, |k,v1,v2| results.push(logic(k,v1,v2)));
-    }
+        let mut closure = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k,v1,v2));
 
-    join_helper(&recent1, &recent2, |k,v1,v2| results.push(logic(k,v1,v2)));
+        for batch2 in input2.stable.borrow().iter() {
+            join_helper(&recent1, &batch2, &mut closure);
+        }
+
+        for batch1 in input1.stable.borrow().iter() {
+            join_helper(&batch1, &recent2, &mut closure);
+        }
+
+        join_helper(&recent1, &recent2, &mut closure);
+    }
 
     output.insert(Relation::from_vec(results));
 }
 
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
-pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord, F: Fn(&Key, &Val)->Result>(
+pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
     input1: &Variable<(Key, Val)>,
     input2: &Relation<Key>,
     output: &Variable<Result>,
-    logic: F) {
+    mut logic: impl FnMut(&Key, &Val)->Result) {
 
     let mut results = Vec::new();
     let mut tuples2 = &input2[..];
@@ -46,7 +51,10 @@ pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord, F: Fn(&Key, &Val)->Result>
     output.insert(Relation::from_vec(results));
 }
 
-fn join_helper<K: Ord, V1, V2, F: FnMut(&K, &V1, &V2)>(mut slice1: &[(K,V1)], mut slice2: &[(K,V2)], mut result: F) {
+fn join_helper<K: Ord, V1, V2>(
+    mut slice1: &[(K,V1)],
+    mut slice2: &[(K,V2)],
+    mut result: impl FnMut(&K,&V1,&V2)) {
 
     while !slice1.is_empty() && !slice2.is_empty() {
 
@@ -81,7 +89,7 @@ fn join_helper<K: Ord, V1, V2, F: FnMut(&K, &V1, &V2)>(mut slice1: &[(K,V1)], mu
     }
 }
 
-pub fn gallop<T, F: Fn(&T)->bool>(mut slice: &[T], cmp: F) -> &[T] {
+pub fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T)->bool) -> &[T] {
     // if empty slice, or already >= element, return
     if slice.len() > 0 && cmp(&slice[0]) {
         let mut step = 1;
