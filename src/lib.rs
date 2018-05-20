@@ -13,6 +13,7 @@
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::cmp::Ordering;
 
 mod map;
 mod join;
@@ -58,50 +59,24 @@ impl<Tuple: Ord> Relation<Tuple> {
         let mut elements = Vec::with_capacity(elements1.len() + elements2.len());
         let mut elements1 = elements1.drain(..);
         let mut elements2 = elements2.drain(..).peekable();
-        // let mut from_1 = 0;
-        // let mut from_2 = 0;
 
         elements.push(elements1.next().unwrap());
-        // from_1 += 1;
+        if &elements[0] == elements2.peek().unwrap() {
+            elements2.next();
+        }
 
         for elem in elements1 {
-            loop {
-                // Pull everything out of elements2 that is less than the thing
-                // we're about to insert into elements from elements1
-                use std::cmp::Ordering;
-                let cmpres = match elements2.peek() {
-                    None => Ordering::Greater,
-                    Some(e2) => e2.cmp(&elem)
-                };
-
-                match cmpres {
-                    Ordering::Greater => break,
-                    Ordering::Equal => {
-                        // consume without pushing
-                        elements2.next();
-                    },
-                    Ordering::Less => {
-                        let tp = elements2.next().unwrap();
-                        if elements[elements.len() - 1] == tp {
-                            // Don't push duplicates
-                            continue;
-                        }
-                        elements.push(tp);
-                    }
-                }
+            while elements2.peek().map(|x| x.cmp(&elem)) == Some(Ordering::Less) {
+                elements.push(elements2.next().unwrap());
             }
-            if elements[elements.len() - 1] == elem {
-                // Don't push duplicates
-                continue;
+            if elements2.peek().map(|x| x.cmp(&elem)) == Some(Ordering::Equal) {
+                elements2.next();
             }
             elements.push(elem);
         }
+
         // Finish draining second list
         for elem in elements2 {
-            if elements[elements.len() - 1] == elem {
-                continue;
-            }
-            // from_2 += 1;
             elements.push(elem);
         }
 
