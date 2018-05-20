@@ -33,3 +33,5 @@ fn main() {
     let reachable: Vec<(u32,u32)> = variable.complete();
 }
 ```
+
+If you'd like to read more about how it works, check out [this blog post](https://github.com/frankmcsherry/blog/blob/master/posts/2018-05-19.md).
