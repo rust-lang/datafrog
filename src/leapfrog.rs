@@ -10,25 +10,34 @@ pub fn leapfrog_into<'a, Tuple: Ord, Val: Ord+'a, Result: Ord>(
     mut logic: impl FnMut(&Tuple, &Val)->Result) {
 
     let mut result = Vec::new();
+    let mut values = Vec::new();
 
     for tuple in source.recent.borrow().iter() {
 
-        for leaper in leapers.iter_mut() {
-            leaper.seek_prefix(tuple);
-        }
-
-        while !leapers.iter().any(|l| l.is_empty()) {
-            // for leaper in leapers.iter() { println!("{:?}, {:?}", leaper.peek_val().is_some(), leaper.is_empty()); }
-            let val = leapers.iter_mut().flat_map(|l| l.peek_val()).max().expect("No maximum found");
-            let mut present = true;
-            for leaper in leapers.iter_mut() {
-                if !leaper.seek_val(&val) { present = false; }
-            }
-            if present {
-                result.push(logic(&tuple, &val));
+        let mut min_index = usize::max_value();
+        let mut min_count = usize::max_value();
+        for index in 0 .. leapers.len() {
+            let count = leapers[index].count(tuple);
+            if min_count > count {
+                min_count = count;
+                min_index = index;
             }
         }
 
+        assert!(min_count < usize::max_value());
+        if min_count > 0 {
+            leapers[min_index].propose(tuple, &mut values);
+
+            for index in 0 .. leapers.len() {
+                if index != min_index {
+                    leapers[index].intersect(tuple, &mut values);
+                }
+            }
+
+            for val in values.drain(..) {
+                result.push(logic(tuple, val));
+            }
+        }
     }
 
     output.insert(result.into());
@@ -36,24 +45,12 @@ pub fn leapfrog_into<'a, Tuple: Ord, Val: Ord+'a, Result: Ord>(
 
 /// Methods to support leapfrog navigation.
 pub trait LeapFrog<'a,Tuple,Val> {
-    /// Sets the cursor for a specific key.
-    fn seek_prefix(&mut self, prefix: &Tuple);
-    /// Seeks a specific key and value pair.
-    ///
-    /// This method positions the cursor just after `val`,
-    /// under the assumption that we will not seek for the
-    /// same value immediately afterwards.
-    fn seek_val(&mut self, val: &Val) -> bool;
-    /// Proposes a next value.
-    ///
-    /// It is not mandatory that this method return a value,
-    /// but we will only observe extensions in the union of
-    /// peeked values. This allows antijoin implementations
-    /// to implement this interface, as long as at least one
-    /// normal join participates.
-    fn peek_val(&self) -> Option<&'a Val>;
-    /// Indicates no further values available.
-    fn is_empty(&self) -> bool;
+    /// Estimates the number of proposed values.
+    fn count(&mut self, prefix: &Tuple) -> usize;
+    /// Populates `values` with proposed values.
+    fn propose(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>);
+    /// Restricts `values` to proposed values.
+    fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>);
 }
 
 /// Extension method for relations.
@@ -110,42 +107,25 @@ mod extend_with {
     }
 
     impl<'a, Key: Ord, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> LeapFrog<'a, Tuple,Val> for ExtendWith<'a, Key, Val, Tuple, Func> {
-        fn seek_prefix(&mut self, tuple: &Tuple) {
-            let key = (self.key_func)(tuple);
+
+        fn count(&mut self, prefix: &Tuple) -> usize {
+            let key = (self.key_func)(prefix);
             let slice1 = gallop(&self.relation[..], |x| &x.0 < &key);
             let slice2 = gallop(slice1, |x| &x.0 <= &key);
             self.start = self.relation.len() - slice1.len();
             self.end = self.relation.len() - slice2.len();
-            assert!(self.start <= self.end);
+            slice1.len() - slice2.len()
         }
-        fn seek_val(&mut self, val: &Val) -> bool {
-            assert!(self.start <= self.end);
-            // Attempt to position the cursor at (key, val).
-            if !self.is_empty() {
-                let slice = gallop(&self.relation[self.start .. self.end], |x| &x.1 < val);
-                self.start = self.end - slice.len();
-            }
-            // If the cursor is positioned at something that yields `val`, then success.
-            if self.peek_val() == Some(val) {
-                self.start += 1;
-                true
-            }
-            else {
-                false
-            }
+        fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<&'a Val>) {
+            let slice = &self.relation[self.start .. self.end];
+            values.extend(slice.iter().map(|&(_, ref val)| val));
         }
-        fn peek_val(&self) -> Option<&'a Val> {
-            assert!(self.start <= self.end);
-            if self.start < self.end {
-                Some(&self.relation[self.start].1)
-            }
-            else {
-                None
-            }
-        }
-        fn is_empty(&self) -> bool {
-            assert!(self.start <= self.end);
-            self.start == self.end
+        fn intersect(&mut self, _prefix: &Tuple, values: &mut Vec<&'a Val>) {
+            let mut slice = &self.relation[self.start .. self.end];
+            values.retain(|v| {
+                slice = gallop(slice, |kv| &kv.1 < v);
+                slice.get(0).map(|kv| &kv.1) == Some(v)
+            });
         }
     }
 }
@@ -157,8 +137,6 @@ mod extend_anti {
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct ExtendAnti<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> {
         relation: &'a Relation<(Key, Val)>,
-        start: usize,
-        end: usize,
         key_func: Func,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
@@ -168,8 +146,6 @@ mod extend_anti {
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
             ExtendAnti {
                 relation,
-                start: 0,
-                end: 0,
                 key_func,
                 phantom: ::std::marker::PhantomData,
             }
@@ -177,35 +153,23 @@ mod extend_anti {
     }
 
     impl<'a, Key: Ord, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> LeapFrog<'a, Tuple,Val> for ExtendAnti<'a, Key, Val, Tuple, Func> {
-        fn seek_prefix(&mut self, tuple: &Tuple) {
-            let key = (self.key_func)(tuple);
+        fn count(&mut self, _prefix: &Tuple) -> usize {
+            usize::max_value()
+        }
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val>) {
+            panic!("ExtendAnti::propose(): variable apparently unbound.");
+        }
+        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>) {
+            let key = (self.key_func)(prefix);
             let slice1 = gallop(&self.relation[..], |x| &x.0 < &key);
             let slice2 = gallop(slice1, |x| &x.0 <= &key);
-            self.start = self.relation.len() - slice1.len();
-            self.end = self.relation.len() - slice2.len();
-            assert!(self.start <= self.end);
-        }
-        fn seek_val(&mut self, val: &Val) -> bool {
-            assert!(self.start <= self.end);
-            // Attempt to position the cursor at (key, val).
-            if !self.is_empty() {
-                let slice = gallop(&self.relation[self.start .. self.end], |x| &x.1 < val);
-                self.start = self.end - slice.len();
+            let mut slice = &slice1[.. (slice1.len() - slice2.len())];
+            if !slice.is_empty() {
+                values.retain(|v| {
+                    slice = gallop(slice, |kv| &kv.1 < v);
+                    slice.get(0).map(|kv| &kv.1) != Some(v)
+                });
             }
-            // If the cursor is positioned at something that yields `val`, then success.
-            if self.start < self.end && &self.relation[self.start].1 == val {
-                self.start += 1;
-                false
-            }
-            else {
-                true
-            }
-        }
-        fn peek_val(&self) -> Option<&'a Val> {
-            None
-        }
-        fn is_empty(&self) -> bool {
-            false
         }
     }
 }
@@ -218,7 +182,6 @@ mod filter_with {
     pub struct FilterWith<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> {
         relation: &'a Relation<(Key, Val)>,
         key_func: Func,
-        found: bool,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -228,25 +191,26 @@ mod filter_with {
             FilterWith {
                 relation,
                 key_func,
-                found: false,
                 phantom: ::std::marker::PhantomData,
             }
         }
     }
 
     impl<'a, Key: Ord, Val: Ord+'a, Val2, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> LeapFrog<'a,Tuple,Val2> for FilterWith<'a, Key, Val, Tuple, Func> {
-        fn seek_prefix(&mut self, tuple: &Tuple) {
-            let key_val = (self.key_func)(tuple);
-            self.found = self.relation.binary_search(&key_val).is_ok();
+        fn count(&mut self, prefix: &Tuple) -> usize {
+            let key_val = (self.key_func)(prefix);
+            if self.relation.binary_search(&key_val).is_ok() {
+                usize::max_value()
+            }
+            else {
+                0
+            }
         }
-        fn seek_val(&mut self, _val: &Val2) -> bool {
-            self.found
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+            panic!("FilterWith::propose(): variable apparently unbound.");
         }
-        fn peek_val(&self) -> Option<&'a Val2> {
-            None
-        }
-        fn is_empty(&self) -> bool {
-            !self.found
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+            // Only here because we didn't return zero above, right?
         }
     }
 }
@@ -259,7 +223,6 @@ mod filter_anti {
     pub struct FilterAnti<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> {
         relation: &'a Relation<(Key, Val)>,
         key_func: Func,
-        found: bool,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -269,25 +232,26 @@ mod filter_anti {
             FilterAnti {
                 relation,
                 key_func,
-                found: false,
                 phantom: ::std::marker::PhantomData,
             }
         }
     }
 
     impl<'a, Key: Ord, Val: Ord+'a, Val2, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> LeapFrog<'a,Tuple,Val2> for FilterAnti<'a, Key, Val, Tuple, Func> {
-        fn seek_prefix(&mut self, tuple: &Tuple) {
-            let key_val = (self.key_func)(tuple);
-            self.found = self.relation.binary_search(&key_val).is_ok();
+        fn count(&mut self, prefix: &Tuple) -> usize {
+            let key_val = (self.key_func)(prefix);
+            if self.relation.binary_search(&key_val).is_ok() {
+                0
+            }
+            else {
+                usize::max_value()
+            }
         }
-        fn seek_val(&mut self, _val: &Val2) -> bool {
-            !self.found
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+            panic!("FilterWith::propose(): variable apparently unbound.");
         }
-        fn peek_val(&self) -> Option<&'a Val2> {
-            None
-        }
-        fn is_empty(&self) -> bool {
-            self.found
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+            // Only here because we didn't return zero above, right?
         }
     }
 }
