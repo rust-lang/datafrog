@@ -248,7 +248,7 @@ mod filter_anti {
             }
         }
         fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
-            panic!("FilterWith::propose(): variable apparently unbound.");
+            panic!("FilterAnti::propose(): variable apparently unbound.");
         }
         fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
             // Only here because we didn't return zero above, right?
