@@ -2,18 +2,19 @@
 
 use super::{Variable, Relation};
 
-/// Performs leapfrog join using a list of leapers.
-pub fn leapfrog_into<'a, Tuple: Ord, Val: Ord+'a, Result: Ord>(
+/// Performs treefrog leapjoin using a list of leapers.
+pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord+'a, Result: Ord>(
     source: &Variable<Tuple>,
-    leapers: &mut [&mut LeapFrog<'a, Tuple, Val>],
+    leapers: &mut [&mut Leaper<'a, Tuple, Val>],
     output: &Variable<Result>,
     mut logic: impl FnMut(&Tuple, &Val)->Result) {
 
-    let mut result = Vec::new();
-    let mut values = Vec::new();
+    let mut result = Vec::new();    // temp output storage.
+    let mut values = Vec::new();    // temp value storage.
 
     for tuple in source.recent.borrow().iter() {
 
+        // Determine which leaper would propose the fewest values.
         let mut min_index = usize::max_value();
         let mut min_count = usize::max_value();
         for index in 0 .. leapers.len() {
@@ -24,16 +25,23 @@ pub fn leapfrog_into<'a, Tuple: Ord, Val: Ord+'a, Result: Ord>(
             }
         }
 
+        // We had best have at least one relation restricting values.
         assert!(min_count < usize::max_value());
+
+        // If there are values to propose ..
         if min_count > 0 {
+
+            // Propose them, ..
             leapers[min_index].propose(tuple, &mut values);
 
+            // Intersect them, ..
             for index in 0 .. leapers.len() {
                 if index != min_index {
                     leapers[index].intersect(tuple, &mut values);
                 }
             }
 
+            // Respond to each of them.
             for val in values.drain(..) {
                 result.push(logic(tuple, val));
             }
@@ -43,8 +51,8 @@ pub fn leapfrog_into<'a, Tuple: Ord, Val: Ord+'a, Result: Ord>(
     output.insert(result.into());
 }
 
-/// Methods to support leapfrog navigation.
-pub trait LeapFrog<'a,Tuple,Val> {
+/// Methods to support treefrog leapjoin.
+pub trait Leaper<'a,Tuple,Val> {
     /// Estimates the number of proposed values.
     fn count(&mut self, prefix: &Tuple) -> usize;
     /// Populates `values` with proposed values.
@@ -54,7 +62,7 @@ pub trait LeapFrog<'a,Tuple,Val> {
 }
 
 /// Extension method for relations.
-pub trait Leaper<Key: Ord, Val: Ord> {
+pub trait RelationLeaper<Key: Ord, Val: Ord> {
     /// Extend with `Val` using the elements of the relation.
     fn extend_with<'a, Tuple: Ord, Func: Fn(&Tuple)->Key>(&'a self, key_func: Func) -> extend_with::ExtendWith<'a, Key, Val, Tuple, Func> where Key: 'a, Val: 'a;
     /// Extend with `Val` using the complement of the relation.
@@ -65,7 +73,7 @@ pub trait Leaper<Key: Ord, Val: Ord> {
     fn filter_anti<'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)>(&'a self, key_func: Func) -> filter_anti::FilterAnti<'a, Key, Val, Tuple, Func> where Key: 'a, Val: 'a;
 }
 
-impl<Key: Ord, Val: Ord> Leaper<Key, Val> for Relation<(Key, Val)> {
+impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
     fn extend_with<'a, Tuple: Ord, Func: Fn(&Tuple)->Key>(&'a self, key_func: Func) -> extend_with::ExtendWith<'a, Key, Val, Tuple, Func> where Key: 'a, Val: 'a {
         extend_with::ExtendWith::from(self, key_func)
     }
@@ -82,7 +90,7 @@ impl<Key: Ord, Val: Ord> Leaper<Key, Val> for Relation<(Key, Val)> {
 
 mod extend_with {
 
-    use super::{Relation, LeapFrog, gallop};
+    use super::{Relation, Leaper, gallop, binary_search};
 
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct ExtendWith<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> {
@@ -106,13 +114,13 @@ mod extend_with {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> LeapFrog<'a, Tuple,Val> for ExtendWith<'a, Key, Val, Tuple, Func> {
+    impl<'a, Key: Ord, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> Leaper<'a, Tuple,Val> for ExtendWith<'a, Key, Val, Tuple, Func> {
 
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key = (self.key_func)(prefix);
-            let slice1 = gallop(&self.relation[..], |x| &x.0 < &key);
+            self.start = binary_search(&self.relation[..], |x| &x.0 < &key);
+            let slice1 = &self.relation[self.start ..];
             let slice2 = gallop(slice1, |x| &x.0 <= &key);
-            self.start = self.relation.len() - slice1.len();
             self.end = self.relation.len() - slice2.len();
             slice1.len() - slice2.len()
         }
@@ -132,7 +140,7 @@ mod extend_with {
 
 mod extend_anti {
 
-    use super::{Relation, LeapFrog, gallop};
+    use super::{Relation, Leaper, gallop, binary_search};
 
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct ExtendAnti<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> {
@@ -152,7 +160,7 @@ mod extend_anti {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> LeapFrog<'a, Tuple,Val> for ExtendAnti<'a, Key, Val, Tuple, Func> {
+    impl<'a, Key: Ord, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> Leaper<'a, Tuple,Val> for ExtendAnti<'a, Key, Val, Tuple, Func> {
         fn count(&mut self, _prefix: &Tuple) -> usize {
             usize::max_value()
         }
@@ -161,7 +169,8 @@ mod extend_anti {
         }
         fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>) {
             let key = (self.key_func)(prefix);
-            let slice1 = gallop(&self.relation[..], |x| &x.0 < &key);
+            let start = binary_search(&self.relation[..], |x| &x.0 < &key);
+            let slice1 = &self.relation[start..];
             let slice2 = gallop(slice1, |x| &x.0 <= &key);
             let mut slice = &slice1[.. (slice1.len() - slice2.len())];
             if !slice.is_empty() {
@@ -176,7 +185,7 @@ mod extend_anti {
 
 mod filter_with {
 
-    use super::{Relation, LeapFrog};
+    use super::{Relation, Leaper};
 
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct FilterWith<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> {
@@ -196,7 +205,7 @@ mod filter_with {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord+'a, Val2, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> LeapFrog<'a,Tuple,Val2> for FilterWith<'a, Key, Val, Tuple, Func> {
+    impl<'a, Key: Ord, Val: Ord+'a, Val2, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> Leaper<'a,Tuple,Val2> for FilterWith<'a, Key, Val, Tuple, Func> {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
             if self.relation.binary_search(&key_val).is_ok() {
@@ -217,7 +226,7 @@ mod filter_with {
 
 mod filter_anti {
 
-    use super::{Relation, LeapFrog};
+    use super::{Relation, Leaper};
 
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct FilterAnti<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> {
@@ -237,7 +246,7 @@ mod filter_anti {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord+'a, Val2, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> LeapFrog<'a,Tuple,Val2> for FilterAnti<'a, Key, Val, Tuple, Func> {
+    impl<'a, Key: Ord, Val: Ord+'a, Val2, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> Leaper<'a,Tuple,Val2> for FilterAnti<'a, Key, Val, Tuple, Func> {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
             if self.relation.binary_search(&key_val).is_ok() {
@@ -256,6 +265,24 @@ mod filter_anti {
     }
 }
 
+fn binary_search<T>(slice: &[T], mut cmp: impl FnMut(&T)->bool) -> usize {
+
+    // we maintain the invariant that `lo` many elements of `slice` satisfy `cmp`.
+    // `hi` is maintained at the first element we know does not satisfy `cmp`.
+
+    let mut hi = slice.len();
+    let mut lo = 0;
+    while lo < hi {
+        let mid = lo + (hi - lo)/2;
+        if cmp(&slice[mid]) {
+            lo = mid + 1;
+        }
+        else {
+            hi = mid;
+        }
+    }
+    lo
+}
 
 fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T)->bool) -> &[T] {
     // if empty slice, or already >= element, return
