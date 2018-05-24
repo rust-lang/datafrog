@@ -35,3 +35,10 @@ fn main() {
 ```
 
 If you'd like to read more about how it works, check out [this blog post](https://github.com/frankmcsherry/blog/blob/master/posts/2018-05-19.md).
+
+## Authorship
+
+Datafrog was initially developed by [Frank McSherry][fmc] and was
+later transferred to the rust-lang-nursery organization. Thanks Frank!
+
+[fmc]: https://github.com/frankmcsherry
