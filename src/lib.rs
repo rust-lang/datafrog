@@ -262,8 +262,6 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let variable = iteration.variable::<(usize, usize)>("source");
     /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x))));
     ///
-    /// let relation = Relation::from((0 .. 10).filter(|x| x % 3 == 0));
-    ///
     /// while iteration.changed() {
     ///     variable.from_map(&variable, |&(key, val)|
     ///         if val % 2 == 0 {
