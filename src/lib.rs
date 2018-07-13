@@ -9,6 +9,7 @@
 //! normal Rust program, run to completion, and then the results extracted as
 //! vectors again.
 
+#![feature(specialization)]
 #![forbid(missing_docs)]
 
 use std::rc::Rc;
@@ -92,8 +93,14 @@ impl<Tuple: Ord> Relation<Tuple> {
 }
 
 impl<Tuple: Ord, I: IntoIterator<Item=Tuple>> From<I> for Relation<Tuple> {
-    fn from(iterator: I) -> Self {
+    default fn from(iterator: I) -> Self {
         Relation::from_vec(iterator.into_iter().collect())
+    }
+}
+
+impl<Tuple: Ord> From<Vec<Tuple>> for Relation<Tuple> {
+    fn from(v: Vec<Tuple>) -> Self {
+        Relation::from_vec(v)
     }
 }
 
