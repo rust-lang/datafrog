@@ -150,7 +150,7 @@ mod extend_anti {
     }
 
     impl<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->Key> ExtendAnti<'a, Key, Val, Tuple, Func> {
-        /// Constructs a ExtendWith from a relation and key and value function.
+        /// Constructs a ExtendAnti from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
             ExtendAnti {
                 relation,
@@ -195,7 +195,7 @@ mod filter_with {
     }
 
     impl<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> FilterWith<'a, Key, Val, Tuple, Func> {
-        /// Constructs a ExtendWith from a relation and key and value function.
+        /// Constructs a FilterWith from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
             FilterWith {
                 relation,
@@ -236,7 +236,7 @@ mod filter_anti {
     }
 
     impl<'a, Key: Ord+'a, Val: Ord+'a, Tuple: Ord, Func: Fn(&Tuple)->(Key,Val)> FilterAnti<'a, Key, Val, Tuple, Func> {
-        /// Constructs a ExtendWith from a relation and key and value function.
+        /// Constructs a FilterAnti from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
             FilterAnti {
                 relation,
