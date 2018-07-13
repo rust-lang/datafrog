@@ -17,7 +17,7 @@ use std::cmp::Ordering;
 
 mod map;
 mod join;
-pub mod leapfrog;
+pub mod treefrog;
 
 /// A static, ordered list of key-value pairs.
 ///
