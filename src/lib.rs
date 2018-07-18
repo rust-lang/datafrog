@@ -84,7 +84,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     }
 
     fn from_vec(mut elements: Vec<Tuple>) -> Self {
-        elements.sort_unstable();
+        elements.sort();
         elements.dedup();
         Relation { elements }
     }
