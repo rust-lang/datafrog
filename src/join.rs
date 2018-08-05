@@ -38,15 +38,12 @@ pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
     output: &Variable<Result>,
     mut logic: impl FnMut(&Key, &Val)->Result) {
 
-    let mut results = Vec::new();
     let mut tuples2 = &input2[..];
 
-    for &(ref key, ref val) in input1.recent.borrow().iter() {
+    let results = input1.recent.borrow().iter().filter(|(ref key, _)| {
         tuples2 = gallop(tuples2, |k| k < key);
-        if tuples2.first() != Some(key) {
-            results.push(logic(key, val));
-        }
-    }
+        tuples2.first() != Some(key)
+    }).map(|(ref key, ref val)| logic(key, val)).collect::<Vec<_>>();
 
     output.insert(Relation::from_vec(results));
 }
@@ -91,7 +88,7 @@ fn join_helper<K: Ord, V1, V2>(
 
 pub fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T)->bool) -> &[T] {
     // if empty slice, or already >= element, return
-    if slice.len() > 0 && cmp(&slice[0]) {
+    if !slice.is_empty() && cmp(&slice[0]) {
         let mut step = 1;
         while step < slice.len() && cmp(&slice[step]) {
             slice = &slice[step..];
