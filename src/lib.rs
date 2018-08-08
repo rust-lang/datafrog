@@ -36,10 +36,11 @@ impl<Tuple: Ord> Relation<Tuple> {
         let mut elements2 = other.elements;
 
         // If one of the element lists is zero-length, we don't need to do any work
-        if elements1.len() == 0 {
+        if elements1.is_empty() {
             return Relation { elements: elements2 };
         }
-        if elements2.len() == 0 {
+
+        if elements2.is_empty() {
             return Relation { elements: elements1 };
         }
 
@@ -61,7 +62,7 @@ impl<Tuple: Ord> Relation<Tuple> {
         let mut elements2 = elements2.drain(..).peekable();
 
         elements.push(elements1.next().unwrap());
-        if &elements[0] == elements2.peek().unwrap() {
+        if elements.first() == elements2.peek() {
             elements2.next();
         }
 
@@ -76,9 +77,7 @@ impl<Tuple: Ord> Relation<Tuple> {
         }
 
         // Finish draining second list
-        for elem in elements2 {
-            elements.push(elem);
-        }
+        elements.extend(elements2);
 
         Relation { elements }
     }
