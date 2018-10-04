@@ -16,11 +16,11 @@ fn main() {
     let filename = std::env::args().nth(1).unwrap();
     let file = BufReader::new(File::open(filename).unwrap());
     for readline in file.lines() {
-        let line = readline.ok().expect("read error");
-        if !line.starts_with('#') && line.len() > 0 {
+        let line = readline.expect("read error");
+        if !line.is_empty() && !line.starts_with('#') {
             let mut elts = line[..].split_whitespace();
-            let src: u32 = elts.next().unwrap().parse().ok().expect("malformed src");
-            let dst: u32 = elts.next().unwrap().parse().ok().expect("malformed dst");
+            let src: u32 = elts.next().unwrap().parse().expect("malformed src");
+            let dst: u32 = elts.next().unwrap().parse().expect("malformed dst");
             let typ: &str = elts.next().unwrap();
             match typ {
                 "n" => { nodes.push((dst, src)); },
