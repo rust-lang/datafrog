@@ -70,8 +70,8 @@ fn join_helper<K: Ord, V1, V2>(
 
                 // Produce results from the cross-product of matches.
                 for index1 in 0 .. count1 {
-                    for index2 in 0 .. count2 {
-                        result(&slice1[0].0, &slice1[index1].1, &slice2[index2].1);
+                    for s2 in slice2[..count2].iter() {
+                        result(&slice1[0].0, &slice1[index1].1, &s2.1);
                     }
                 }
 
@@ -92,19 +92,19 @@ pub fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T)->bool) -> &[T] {
         let mut step = 1;
         while step < slice.len() && cmp(&slice[step]) {
             slice = &slice[step..];
-            step = step << 1;
+            step <<= 1;
         }
 
-        step = step >> 1;
+        step >>= 1;
         while step > 0 {
             if step < slice.len() && cmp(&slice[step]) {
                 slice = &slice[step..];
             }
-            step = step >> 1;
+            step >>= 1;
         }
 
         slice = &slice[1..]; // advance one, as we always stayed < value
     }
 
-    return slice;
+    slice
 }

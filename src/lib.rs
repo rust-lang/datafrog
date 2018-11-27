@@ -296,9 +296,9 @@ impl<Tuple: Ord> Variable<Tuple> {
         Variable {
             distinct: true,
             name: name.to_string(),
-            stable: Rc::new(RefCell::new(Vec::new().into())),
+            stable: Rc::new(RefCell::new(Vec::new())),
             recent: Rc::new(RefCell::new(Vec::new().into())),
-            to_add: Rc::new(RefCell::new(Vec::new().into())),
+            to_add: Rc::new(RefCell::new(Vec::new())),
         }
     }
     /// Inserts a relation into the variable.
@@ -356,15 +356,15 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
                     if slice.len() > 4 * to_add.elements.len() {
                         to_add.elements.retain(|x| {
                             slice = join::gallop(slice, |y| y < x);
-                            slice.len() == 0 || &slice[0] != x
+                            slice.is_empty() || &slice[0] != x
                         });
                     }
                     else {
                         to_add.elements.retain(|x| {
-                            while slice.len() > 0 && &slice[0] < x {
+                            while !slice.is_empty() && &slice[0] < x {
                                 slice = &slice[1..];
                             }
-                            slice.len() == 0 || &slice[0] != x
+                            slice.is_empty() || &slice[0] != x
                         });
                     }
                 }
