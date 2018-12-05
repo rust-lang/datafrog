@@ -321,11 +321,11 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// - Finally, you get a callback `logic` that accepts each `(SourceTuple, Val)`
     ///   that was successfully joined (and not filtered) and which maps to the
     ///   type of this variable.
-    pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
+    pub fn from_leapjoin<SourceTuple: Ord, Val: Ord>(
         &self,
         source: &Variable<SourceTuple>,
-        leapers: &mut [&mut dyn Leaper<SourceTuple, &'a Val>],
-        logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
+        leapers: &mut [&mut dyn Leaper<SourceTuple, Val>],
+        logic: impl FnMut(&SourceTuple, Val) -> Tuple,
     ) {
         treefrog::leapjoin_into(source, leapers, self, logic)
     }
