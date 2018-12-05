@@ -11,12 +11,12 @@
 
 #![forbid(missing_docs)]
 
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::rc::Rc;
 
-mod map;
 mod join;
+mod map;
 pub mod treefrog;
 
 /// A static, ordered list of key-value pairs.
@@ -26,23 +26,26 @@ pub mod treefrog;
 /// to vary (for example, in antijoins).
 pub struct Relation<Tuple: Ord> {
     /// Sorted list of distinct tuples.
-    pub elements: Vec<Tuple>
+    pub elements: Vec<Tuple>,
 }
 
 impl<Tuple: Ord> Relation<Tuple> {
     /// Merges two relations into their union.
     pub fn merge(self, other: Self) -> Self {
-
         let mut elements1 = self.elements;
         let mut elements2 = other.elements;
 
         // If one of the element lists is zero-length, we don't need to do any work
         if elements1.is_empty() {
-            return Relation { elements: elements2 };
+            return Relation {
+                elements: elements2,
+            };
         }
 
         if elements2.is_empty() {
-            return Relation { elements: elements1 };
+            return Relation {
+                elements: elements1,
+            };
         }
 
         // Make sure that elements1 starts with the lower element
@@ -55,7 +58,9 @@ impl<Tuple: Ord> Relation<Tuple> {
         if elements1[elements1.len() - 1] < elements2[0] {
             elements1.extend(elements2.into_iter());
             // println!("fast path");
-            return Relation { elements: elements1 };
+            return Relation {
+                elements: elements1,
+            };
         }
 
         let mut elements = Vec::with_capacity(elements1.len() + elements2.len());
@@ -88,10 +93,9 @@ impl<Tuple: Ord> Relation<Tuple> {
         elements.dedup();
         Relation { elements }
     }
-
 }
 
-impl<Tuple: Ord, I: IntoIterator<Item=Tuple>> From<I> for Relation<Tuple> {
+impl<Tuple: Ord, I: IntoIterator<Item = Tuple>> From<I> for Relation<Tuple> {
     fn from(iterator: I) -> Self {
         Relation::from_vec(iterator.into_iter().collect())
     }
@@ -116,19 +120,23 @@ pub struct Iteration {
 impl Iteration {
     /// Create a new iterative context.
     pub fn new() -> Self {
-        Iteration { variables: Vec::new() }
+        Iteration {
+            variables: Vec::new(),
+        }
     }
     /// Reports whether any of the monitored variables have changed since
     /// the most recent call.
     pub fn changed(&mut self) -> bool {
         let mut result = false;
         for variable in self.variables.iter_mut() {
-            if variable.changed() { result = true; }
+            if variable.changed() {
+                result = true;
+            }
         }
         result
     }
     /// Creates a new named variable associated with the iterative context.
-    pub fn variable<Tuple: Ord+'static>(&mut self, name: &str) -> Variable<Tuple> {
+    pub fn variable<Tuple: Ord + 'static>(&mut self, name: &str) -> Variable<Tuple> {
         let variable = Variable::new(name);
         self.variables.push(Box::new(variable.clone()));
         variable
@@ -137,7 +145,7 @@ impl Iteration {
     ///
     /// This variable will not be maintained distinctly, and may advertise tuples as
     /// recent multiple times (perhaps unboundedly many times).
-    pub fn variable_indistinct<Tuple: Ord+'static>(&mut self, name: &str) -> Variable<Tuple> {
+    pub fn variable_indistinct<Tuple: Ord + 'static>(&mut self, name: &str) -> Variable<Tuple> {
         let mut variable = Variable::new(name);
         variable.distinct = false;
         self.variables.push(Box::new(variable.clone()));
@@ -206,12 +214,12 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<K: Ord,V1: Ord, V2: Ord>(
+    pub fn from_join<K: Ord, V1: Ord, V2: Ord>(
         &self,
-        input1: &Variable<(K,V1)>,
-        input2: &Variable<(K,V2)>,
-        logic: impl FnMut(&K,&V1,&V2)->Tuple)
-    {
+        input1: &Variable<(K, V1)>,
+        input2: &Variable<(K, V2)>,
+        logic: impl FnMut(&K, &V1, &V2) -> Tuple,
+    ) {
         join::join_into(input1, input2, self, logic)
     }
     /// Adds tuples from `input1` whose key is not present in `input2`.
@@ -240,10 +248,10 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// ```
     pub fn from_antijoin<K: Ord, V: Ord>(
         &self,
-        input1: &Variable<(K,V)>,
+        input1: &Variable<(K, V)>,
         input2: &Relation<K>,
-        logic: impl FnMut(&K,&V)->Tuple)
-    {
+        logic: impl FnMut(&K, &V) -> Tuple,
+    ) {
         join::antijoin_into(input1, input2, self, logic)
     }
     /// Adds tuples that result from mapping `input`.
@@ -275,7 +283,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 74);
     /// ```
-    pub fn from_map<T2: Ord>(&self, input: &Variable<T2>, logic: impl FnMut(&T2)->Tuple) {
+    pub fn from_map<T2: Ord>(&self, input: &Variable<T2>, logic: impl FnMut(&T2) -> Tuple) {
         map::map_into(input, self, logic)
     }
 }
@@ -319,7 +327,6 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// asserts that iteration has completed, in that `self.recent` and
     /// `self.to_add` should both be empty.
     pub fn complete(self) -> Relation<Tuple> {
-
         assert!(self.recent.borrow().is_empty());
         assert!(self.to_add.borrow().is_empty());
         let mut result: Relation<Tuple> = Vec::new().into();
@@ -332,11 +339,17 @@ impl<Tuple: Ord> Variable<Tuple> {
 
 impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
     fn changed(&mut self) -> bool {
-
         // 1. Merge self.recent into self.stable.
         if !self.recent.borrow().is_empty() {
-            let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), Vec::new().into());
-            while self.stable.borrow().last().map(|x| x.len() <= 2 * recent.len()) == Some(true) {
+            let mut recent =
+                ::std::mem::replace(&mut (*self.recent.borrow_mut()), Vec::new().into());
+            while self
+                .stable
+                .borrow()
+                .last()
+                .map(|x| x.len() <= 2 * recent.len())
+                == Some(true)
+            {
                 let last = self.stable.borrow_mut().pop().unwrap();
                 recent = recent.merge(last);
             }
@@ -359,8 +372,7 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
                             slice = join::gallop(slice, |y| y < x);
                             slice.is_empty() || &slice[0] != x
                         });
-                    }
-                    else {
+                    } else {
                         to_add.elements.retain(|x| {
                             while !slice.is_empty() && &slice[0] < x {
                                 slice = &slice[1..];
