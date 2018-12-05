@@ -5,7 +5,7 @@ use super::{Relation, Variable};
 /// Performs treefrog leapjoin using a list of leapers.
 pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
     source: &Variable<Tuple>,
-    leapers: &mut [&mut Leaper<'a, Tuple, Val>],
+    leapers: &mut [&mut dyn Leaper<'a, Tuple, Val>],
     output: &Variable<Result>,
     mut logic: impl FnMut(&Tuple, &Val) -> Result,
 ) {
@@ -138,7 +138,7 @@ impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
     }
 }
 
-mod extend_with {
+pub(crate) mod extend_with {
     use super::{binary_search, Leaper, Relation};
     use join::gallop;
 
@@ -205,7 +205,7 @@ mod extend_with {
     }
 }
 
-mod extend_anti {
+pub(crate) mod extend_anti {
     use super::{binary_search, Leaper, Relation};
     use join::gallop;
 
@@ -269,7 +269,7 @@ mod extend_anti {
     }
 }
 
-mod filter_with {
+pub(crate) mod filter_with {
 
     use super::{Leaper, Relation};
 
@@ -328,7 +328,7 @@ mod filter_with {
     }
 }
 
-mod filter_anti {
+pub(crate) mod filter_anti {
 
     use super::{Leaper, Relation};
 

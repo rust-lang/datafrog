@@ -61,7 +61,7 @@ fn main() {
         subset_r1p.complete()
     };
 
-    let requires = {
+    let _requires = {
         // Create a new iteration context, ...
         let mut iteration2 = Iteration::new();
 
