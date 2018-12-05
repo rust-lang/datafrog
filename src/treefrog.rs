@@ -59,6 +59,92 @@ pub trait Leaper<'a, Tuple, Val> {
     fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>);
 }
 
+pub mod filters {
+
+    use super::Leaper;
+
+    /// A treefrog leaper based on a per-prefix predicate.
+    pub struct PrefixFilter<Tuple, Func: Fn(&Tuple)->bool> {
+        phantom: ::std::marker::PhantomData<Tuple>,
+        predicate: Func,
+    }
+
+    impl<'a, Tuple, Func> PrefixFilter<Tuple, Func>
+    where
+        Func: Fn(&Tuple) -> bool
+    {
+        /// Creates a new filter based on the prefix
+        pub fn from(predicate: Func) -> Self {
+            PrefixFilter {
+                phantom: ::std::marker::PhantomData,
+                predicate,
+            }
+        }
+    }
+
+    impl<'a, Tuple, Val, Func> Leaper<'a, Tuple, Val> for PrefixFilter<Tuple, Func>
+    where
+        Func: Fn(&Tuple) -> bool
+    {
+        /// Estimates the number of proposed values.
+        fn count(&mut self, prefix: &Tuple) -> usize {
+            if (self.predicate)(prefix) {
+                usize::max_value()
+            }
+            else {
+                0
+            }
+        }
+        /// Populates `values` with proposed values.
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val>) {
+            panic!("PrefixFilter::propose(): variable apparently unbound");
+        }
+        /// Restricts `values` to proposed values.
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val>) {
+            // We can only be here if we returned max_value() above.
+        }
+    }
+
+    /// A treefrog leaper based on a predicate of prefix and value.
+    pub struct ValueFilter<Tuple, Val, Func: Fn(&Tuple, &Val)->bool> {
+        phantom: ::std::marker::PhantomData<(Tuple, Val)>,
+        predicate: Func,
+    }
+
+    impl<'a, Tuple, Val, Func> ValueFilter<Tuple, Val, Func>
+    where
+        Func: Fn(&Tuple, &Val) -> bool
+    {
+        /// Creates a new filter based on the prefix
+        pub fn from(predicate: Func) -> Self {
+            ValueFilter {
+                phantom: ::std::marker::PhantomData,
+                predicate,
+            }
+        }
+    }
+
+    impl<'a, Tuple, Val, Func> Leaper<'a, Tuple, Val> for ValueFilter<Tuple, Val, Func>
+    where
+        Func: Fn(&Tuple, &Val) -> bool
+    {
+        /// Estimates the number of proposed values.
+        fn count(&mut self, _prefix: &Tuple) -> usize {
+            usize::max_value()
+        }
+        /// Populates `values` with proposed values.
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val>) {
+            panic!("PrefixFilter::propose(): variable apparently unbound");
+        }
+        /// Restricts `values` to proposed values.
+        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>) {
+            values.retain(|val| (self.predicate)(prefix, val));
+        }
+    }
+
+}
+
+
 /// Extension method for relations.
 pub trait RelationLeaper<Key: Ord, Val: Ord> {
     /// Extend with `Val` using the elements of the relation.
