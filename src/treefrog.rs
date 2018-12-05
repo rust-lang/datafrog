@@ -143,7 +143,13 @@ mod extend_with {
     use join::gallop;
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct ExtendWith<'a, Key: Ord + 'a, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> {
+    pub struct ExtendWith<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
+    {
         relation: &'a Relation<(Key, Val)>,
         start: usize,
         end: usize,
@@ -151,8 +157,12 @@ mod extend_with {
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
-    impl<'a, Key: Ord + 'a, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key>
-        ExtendWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> ExtendWith<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
     {
         /// Constructs a ExtendWith from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
@@ -166,8 +176,12 @@ mod extend_with {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> Leaper<'a, Tuple, Val>
-        for ExtendWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> Leaper<'a, Tuple, Val> for ExtendWith<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key = (self.key_func)(prefix);
@@ -196,14 +210,24 @@ mod extend_anti {
     use join::gallop;
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct ExtendAnti<'a, Key: Ord + 'a, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> {
+    pub struct ExtendAnti<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
+    {
         relation: &'a Relation<(Key, Val)>,
         key_func: Func,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
-    impl<'a, Key: Ord + 'a, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key>
-        ExtendAnti<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> ExtendAnti<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
     {
         /// Constructs a ExtendAnti from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
@@ -217,6 +241,11 @@ mod extend_anti {
 
     impl<'a, Key: Ord, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> Leaper<'a, Tuple, Val>
         for ExtendAnti<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
     {
         fn count(&mut self, _prefix: &Tuple) -> usize {
             usize::max_value()
@@ -245,20 +274,24 @@ mod filter_with {
     use super::{Leaper, Relation};
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct FilterWith<
-        'a,
+    pub struct FilterWith<'a, Key, Val, Tuple, Func>
+    where
         Key: Ord + 'a,
         Val: Ord + 'a,
         Tuple: Ord,
         Func: Fn(&Tuple) -> (Key, Val),
-    > {
+    {
         relation: &'a Relation<(Key, Val)>,
         key_func: Func,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
-    impl<'a, Key: Ord + 'a, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>
-        FilterWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> FilterWith<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> (Key, Val),
     {
         /// Constructs a FilterWith from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
@@ -270,8 +303,13 @@ mod filter_with {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord + 'a, Val2, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>
-        Leaper<'a, Tuple, Val2> for FilterWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<'a, Tuple, Val2>
+        for FilterWith<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> (Key, Val),
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
@@ -295,20 +333,24 @@ mod filter_anti {
     use super::{Leaper, Relation};
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct FilterAnti<
-        'a,
+    pub struct FilterAnti<'a, Key, Val, Tuple, Func>
+    where
         Key: Ord + 'a,
         Val: Ord + 'a,
         Tuple: Ord,
         Func: Fn(&Tuple) -> (Key, Val),
-    > {
+    {
         relation: &'a Relation<(Key, Val)>,
         key_func: Func,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
-    impl<'a, Key: Ord + 'a, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>
-        FilterAnti<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> FilterAnti<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> (Key, Val),
     {
         /// Constructs a FilterAnti from a relation and key and value function.
         pub fn from(relation: &'a Relation<(Key, Val)>, key_func: Func) -> Self {
@@ -322,6 +364,11 @@ mod filter_anti {
 
     impl<'a, Key: Ord, Val: Ord + 'a, Val2, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>
         Leaper<'a, Tuple, Val2> for FilterAnti<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> (Key, Val),
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
