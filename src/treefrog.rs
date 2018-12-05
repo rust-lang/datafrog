@@ -3,11 +3,11 @@
 use super::{Relation, Variable};
 
 /// Performs treefrog leapjoin using a list of leapers.
-pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
+pub fn leapjoin_into<Tuple: Ord, Val: Ord, Result: Ord>(
     source: &Variable<Tuple>,
-    leapers: &mut [&mut dyn Leaper<'a, Tuple, Val>],
+    leapers: &mut [&mut dyn Leaper<Tuple, Val>],
     output: &Variable<Result>,
-    mut logic: impl FnMut(&Tuple, &Val) -> Result,
+    mut logic: impl FnMut(&Tuple, Val) -> Result,
 ) {
     let mut result = Vec::new(); // temp output storage.
     let mut values = Vec::new(); // temp value storage.
@@ -50,13 +50,13 @@ pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
 }
 
 /// Methods to support treefrog leapjoin.
-pub trait Leaper<'a, Tuple, Val> {
+pub trait Leaper<Tuple, Val> {
     /// Estimates the number of proposed values.
     fn count(&mut self, prefix: &Tuple) -> usize;
     /// Populates `values` with proposed values.
-    fn propose(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>);
+    fn propose(&mut self, prefix: &Tuple, values: &mut Vec<Val>);
     /// Restricts `values` to proposed values.
-    fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>);
+    fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<Val>);
 }
 
 /// Extension method for relations.
@@ -176,7 +176,8 @@ pub(crate) mod extend_with {
         }
     }
 
-    impl<'a, Key, Val, Tuple, Func> Leaper<'a, Tuple, Val> for ExtendWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, &'a Val>
+        for ExtendWith<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + 'a,
@@ -196,6 +197,35 @@ pub(crate) mod extend_with {
             values.extend(slice.iter().map(|&(_, ref val)| val));
         }
         fn intersect(&mut self, _prefix: &Tuple, values: &mut Vec<&'a Val>) {
+            let mut slice = &self.relation[self.start..self.end];
+            values.retain(|v| {
+                slice = gallop(slice, |kv| &kv.1 < v);
+                slice.get(0).map(|kv| &kv.1) == Some(v)
+            });
+        }
+    }
+
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, Val>
+        for ExtendWith<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + Clone + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
+    {
+        fn count(&mut self, prefix: &Tuple) -> usize {
+            let key = (self.key_func)(prefix);
+            self.start = binary_search(&self.relation[..], |x| &x.0 < &key);
+            let slice1 = &self.relation[self.start..];
+            let slice2 = gallop(slice1, |x| &x.0 <= &key);
+            self.end = self.relation.len() - slice2.len();
+            slice1.len() - slice2.len()
+        }
+        fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<Val>) {
+            let slice = &self.relation[self.start..self.end];
+            values.extend(slice.iter().map(|&(_, ref val)| val.clone()));
+        }
+        fn intersect(&mut self, _prefix: &Tuple, values: &mut Vec<Val>) {
             let mut slice = &self.relation[self.start..self.end];
             values.retain(|v| {
                 slice = gallop(slice, |kv| &kv.1 < v);
@@ -239,7 +269,7 @@ pub(crate) mod extend_anti {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> Leaper<'a, Tuple, Val>
+    impl<'a, Key: Ord, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> Leaper<Tuple, &'a Val>
         for ExtendAnti<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
@@ -254,6 +284,35 @@ pub(crate) mod extend_anti {
             panic!("ExtendAnti::propose(): variable apparently unbound.");
         }
         fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'a Val>) {
+            let key = (self.key_func)(prefix);
+            let start = binary_search(&self.relation[..], |x| &x.0 < &key);
+            let slice1 = &self.relation[start..];
+            let slice2 = gallop(slice1, |x| &x.0 <= &key);
+            let mut slice = &slice1[..(slice1.len() - slice2.len())];
+            if !slice.is_empty() {
+                values.retain(|v| {
+                    slice = gallop(slice, |kv| &kv.1 < v);
+                    slice.get(0).map(|kv| &kv.1) != Some(v)
+                });
+            }
+        }
+    }
+
+    impl<'a, Key: Ord, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> Leaper<Tuple, Val>
+        for ExtendAnti<'a, Key, Val, Tuple, Func>
+    where
+        Key: Ord + 'a,
+        Val: Ord + Clone + 'a,
+        Tuple: Ord,
+        Func: Fn(&Tuple) -> Key,
+    {
+        fn count(&mut self, _prefix: &Tuple) -> usize {
+            usize::max_value()
+        }
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<Val>) {
+            panic!("ExtendAnti::propose(): variable apparently unbound.");
+        }
+        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<Val>) {
             let key = (self.key_func)(prefix);
             let start = binary_search(&self.relation[..], |x| &x.0 < &key);
             let slice1 = &self.relation[start..];
@@ -303,7 +362,7 @@ pub(crate) mod filter_with {
         }
     }
 
-    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<'a, Tuple, Val2>
+    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<Tuple, Val2>
         for FilterWith<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
@@ -319,10 +378,10 @@ pub(crate) mod filter_with {
                 0
             }
         }
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<Val2>) {
             panic!("FilterWith::propose(): variable apparently unbound.");
         }
-        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<Val2>) {
             // Only here because we didn't return zero above, right?
         }
     }
@@ -362,8 +421,8 @@ pub(crate) mod filter_anti {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord + 'a, Val2, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>
-        Leaper<'a, Tuple, Val2> for FilterAnti<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<Tuple, Val2>
+        for FilterAnti<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + 'a,
@@ -378,10 +437,10 @@ pub(crate) mod filter_anti {
                 usize::max_value()
             }
         }
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<Val2>) {
             panic!("FilterAnti::propose(): variable apparently unbound.");
         }
-        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'a Val2>) {
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<Val2>) {
             // Only here because we didn't return zero above, right?
         }
     }
