@@ -1,6 +1,6 @@
 [package]
 name = "datafrog"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Frank McSherry <fmcsherry@me.com>", "The Rust Project Developers", "Datafrog Developers"]
 license = "Apache-2.0/MIT"
 description = "Lightweight Datalog engine intended to be embedded in other Rust programs"
