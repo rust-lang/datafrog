@@ -17,13 +17,18 @@ use std::rc::Rc;
 
 mod join;
 mod map;
-pub mod treefrog;
+mod treefrog;
+pub use treefrog::{
+    extend_anti::ExtendAnti, extend_with::ExtendWith, filter_anti::FilterAnti,
+    filter_with::FilterWith, Leaper, RelationLeaper,
+};
 
 /// A static, ordered list of key-value pairs.
 ///
 /// A relation represents a fixed set of key-value pairs. In many places in a
 /// Datalog computation we want to be sure that certain relations are not able
 /// to vary (for example, in antijoins).
+#[derive(Clone)]
 pub struct Relation<Tuple: Ord> {
     /// Sorted list of distinct tuples.
     pub elements: Vec<Tuple>,
@@ -114,7 +119,7 @@ impl<Tuple: Ord> std::ops::Deref for Relation<Tuple> {
 /// It can inform the user if they have ceased changing, at which point the
 /// computation should be done.
 pub struct Iteration {
-    variables: Vec<Box<VariableTrait>>,
+    variables: Vec<Box<dyn VariableTrait>>,
 }
 
 impl Iteration {
@@ -222,6 +227,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     ) {
         join::join_into(input1, input2, self, logic)
     }
+
     /// Adds tuples from `input1` whose key is not present in `input2`.
     ///
     /// # Examples
@@ -254,6 +260,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     ) {
         join::antijoin_into(input1, input2, self, logic)
     }
+
     /// Adds tuples that result from mapping `input`.
     ///
     /// # Examples
@@ -285,6 +292,21 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// ```
     pub fn from_map<T2: Ord>(&self, input: &Variable<T2>, logic: impl FnMut(&T2) -> Tuple) {
         map::map_into(input, self, logic)
+    }
+
+    /// Adds tuples that result from combining `source` with the
+    /// relations given in `leapers`. This operation is very flexible
+    /// and can be used to do a combination of joins and anti-joins.
+    /// The main limitation is that the things being combined must
+    /// consist of one dynamic variable (`source`) and then several
+    /// fixed relations (`leapers`).
+    pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
+        &self,
+        source: &Variable<SourceTuple>,
+        leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
+        logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
+    ) {
+        treefrog::leapjoin_into(source, leapers, self, logic)
     }
 }
 
