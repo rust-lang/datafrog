@@ -176,8 +176,7 @@ pub(crate) mod extend_with {
         }
     }
 
-    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, &'a Val>
-        for ExtendWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, &'a Val> for ExtendWith<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + 'a,
@@ -205,8 +204,7 @@ pub(crate) mod extend_with {
         }
     }
 
-    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, Val>
-        for ExtendWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, Val> for ExtendWith<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + Clone + 'a,
@@ -269,8 +267,7 @@ pub(crate) mod extend_anti {
         }
     }
 
-    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, &'a Val>
-        for ExtendAnti<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, &'a Val> for ExtendAnti<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + 'a,
@@ -298,8 +295,7 @@ pub(crate) mod extend_anti {
         }
     }
 
-    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, Val>
-        for ExtendAnti<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, Val> for ExtendAnti<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + Clone + 'a,
@@ -362,8 +358,7 @@ pub(crate) mod filter_with {
         }
     }
 
-    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<Tuple, Val2>
-        for FilterWith<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<Tuple, Val2> for FilterWith<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + 'a,
@@ -421,8 +416,7 @@ pub(crate) mod filter_anti {
         }
     }
 
-    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<Tuple, Val2>
-        for FilterAnti<'a, Key, Val, Tuple, Func>
+    impl<'a, Key, Val, Val2, Tuple, Func> Leaper<Tuple, Val2> for FilterAnti<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
         Val: Ord + 'a,
