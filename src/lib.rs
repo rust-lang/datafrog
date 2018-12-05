@@ -19,9 +19,12 @@ mod join;
 mod map;
 mod treefrog;
 pub use treefrog::{
-    extend_anti::ExtendAnti, extend_with::ExtendWith, filter_anti::FilterAnti,
-    filter_with::FilterWith, Leaper, RelationLeaper,
+    extend_anti::ExtendAnti,
+    extend_with::ExtendWith,
+    filter_anti::FilterAnti,
+    filter_with::FilterWith,
     filters::{PrefixFilter, ValueFilter},
+    Leaper, RelationLeaper,
 };
 
 /// A static, ordered list of key-value pairs.

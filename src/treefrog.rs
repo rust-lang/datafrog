@@ -64,14 +64,14 @@ pub mod filters {
     use super::Leaper;
 
     /// A treefrog leaper based on a per-prefix predicate.
-    pub struct PrefixFilter<Tuple, Func: Fn(&Tuple)->bool> {
+    pub struct PrefixFilter<Tuple, Func: Fn(&Tuple) -> bool> {
         phantom: ::std::marker::PhantomData<Tuple>,
         predicate: Func,
     }
 
     impl<'a, Tuple, Func> PrefixFilter<Tuple, Func>
     where
-        Func: Fn(&Tuple) -> bool
+        Func: Fn(&Tuple) -> bool,
     {
         /// Creates a new filter based on the prefix
         pub fn from(predicate: Func) -> Self {
@@ -84,14 +84,13 @@ pub mod filters {
 
     impl<'a, Tuple, Val, Func> Leaper<'a, Tuple, Val> for PrefixFilter<Tuple, Func>
     where
-        Func: Fn(&Tuple) -> bool
+        Func: Fn(&Tuple) -> bool,
     {
         /// Estimates the number of proposed values.
         fn count(&mut self, prefix: &Tuple) -> usize {
             if (self.predicate)(prefix) {
                 usize::max_value()
-            }
-            else {
+            } else {
                 0
             }
         }
@@ -106,14 +105,14 @@ pub mod filters {
     }
 
     /// A treefrog leaper based on a predicate of prefix and value.
-    pub struct ValueFilter<Tuple, Val, Func: Fn(&Tuple, &Val)->bool> {
+    pub struct ValueFilter<Tuple, Val, Func: Fn(&Tuple, &Val) -> bool> {
         phantom: ::std::marker::PhantomData<(Tuple, Val)>,
         predicate: Func,
     }
 
     impl<'a, Tuple, Val, Func> ValueFilter<Tuple, Val, Func>
     where
-        Func: Fn(&Tuple, &Val) -> bool
+        Func: Fn(&Tuple, &Val) -> bool,
     {
         /// Creates a new filter based on the prefix
         pub fn from(predicate: Func) -> Self {
@@ -126,7 +125,7 @@ pub mod filters {
 
     impl<'a, Tuple, Val, Func> Leaper<'a, Tuple, Val> for ValueFilter<Tuple, Val, Func>
     where
-        Func: Fn(&Tuple, &Val) -> bool
+        Func: Fn(&Tuple, &Val) -> bool,
     {
         /// Estimates the number of proposed values.
         fn count(&mut self, _prefix: &Tuple) -> usize {
@@ -143,7 +142,6 @@ pub mod filters {
     }
 
 }
-
 
 /// Extension method for relations.
 pub trait RelationLeaper<Key: Ord, Val: Ord> {
