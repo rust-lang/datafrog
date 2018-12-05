@@ -2,7 +2,6 @@ extern crate datafrog;
 use datafrog::Iteration;
 
 fn main() {
-
     let timer = ::std::time::Instant::now();
 
     // Make space for input data.
@@ -10,8 +9,8 @@ fn main() {
     let mut edges = Vec::new();
 
     // Read input data from a handy file.
-    use std::io::{BufRead, BufReader};
     use std::fs::File;
+    use std::io::{BufRead, BufReader};
 
     let filename = std::env::args().nth(1).unwrap();
     let file = BufReader::new(File::open(filename).unwrap());
@@ -23,9 +22,13 @@ fn main() {
             let dst: u32 = elts.next().unwrap().parse().expect("malformed dst");
             let typ: &str = elts.next().unwrap();
             match typ {
-                "n" => { nodes.push((dst, src)); },
-                "e" => { edges.push((src, dst)); },
-                unk => { panic!("unknown type: {}", unk)},
+                "n" => {
+                    nodes.push((dst, src));
+                }
+                "e" => {
+                    edges.push((src, dst));
+                }
+                unk => panic!("unknown type: {}", unk),
             }
         }
     }
@@ -36,8 +39,8 @@ fn main() {
     let mut iteration = Iteration::new();
 
     // .. some variables, ..
-    let variable1 = iteration.variable::<(u32,u32)>("nodes");
-    let variable2 = iteration.variable::<(u32,u32)>("edges");
+    let variable1 = iteration.variable::<(u32, u32)>("nodes");
+    let variable2 = iteration.variable::<(u32, u32)>("edges");
 
     // .. load them with some initial values, ..
     variable1.insert(nodes.into());
@@ -46,11 +49,14 @@ fn main() {
     // .. and then start iterating rules!
     while iteration.changed() {
         // N(a,c) <-  N(a,b), E(b,c)
-        variable1.from_join(&variable1, &variable2, |_b, &a, &c| (c,a));
+        variable1.from_join(&variable1, &variable2, |_b, &a, &c| (c, a));
     }
 
     let reachable = variable1.complete();
 
-    println!("{:?}\tComputation complete (nodes_final: {})", timer.elapsed(), reachable.len());
-
+    println!(
+        "{:?}\tComputation complete (nodes_final: {})",
+        timer.elapsed(),
+        reachable.len()
+    );
 }

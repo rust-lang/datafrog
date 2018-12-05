@@ -6,9 +6,7 @@ type Borrow = u32;
 type Point = u32;
 
 fn main() {
-
     let subset = {
-
         // Create a new iteration context, ...
         let mut iteration1 = Iteration::new();
 
@@ -34,11 +32,10 @@ fn main() {
 
         // .. and then start iterating rules!
         while iteration1.changed() {
-
             // remap fields to re-index by keys.
-            subset_r1p.from_map(&subset, |&(r1,r2,p)| ((r1,p),r2));
-            subset_r2p.from_map(&subset, |&(r1,r2,p)| ((r2,p),r1));
-            subset_p.from_map(&subset, |&(r1,r2,p)| (p,(r1,r2)));
+            subset_r1p.from_map(&subset, |&(r1, r2, p)| ((r1, p), r2));
+            subset_r2p.from_map(&subset, |&(r1, r2, p)| ((r2, p), r1));
+            subset_p.from_map(&subset, |&(r1, r2, p)| (p, (r1, r2)));
 
             // R0: subset(R1, R2, P) :- outlives(R1, R2, P).
             // Already loaded; outlives is static.
@@ -46,7 +43,7 @@ fn main() {
             // R1: subset(R1, R3, P) :-
             //   subset(R1, R2, P),
             //   subset(R2, R3, P).
-            subset.from_join(&subset_r2p, &subset_r1p, |&(_r2,p),&r1,&r3| (r1,r3,p));
+            subset.from_join(&subset_r2p, &subset_r1p, |&(_r2, p), &r1, &r3| (r1, r3, p));
 
             // R2: subset(R1, R2, Q) :-
             //   subset(R1, R2, P),
@@ -54,17 +51,17 @@ fn main() {
             //   region_live_at(R1, Q),
             //   region_live_at(R2, Q).
 
-            subset_1.from_join(&subset_p, &cfg_edge_p, |&_p, &(r1,r2), &q| ((r1,q),r2));
-            subset_2.from_join(&subset_1, &region_live_at, |&(r1,q),&r2,&()| ((r2,q),r1));
-            subset.from_join(&subset_2, &region_live_at, |&(r2,q),&r1,&()| (r1,r2,q));
-
+            subset_1.from_join(&subset_p, &cfg_edge_p, |&_p, &(r1, r2), &q| ((r1, q), r2));
+            subset_2.from_join(&subset_1, &region_live_at, |&(r1, q), &r2, &()| {
+                ((r2, q), r1)
+            });
+            subset.from_join(&subset_2, &region_live_at, |&(r2, q), &r1, &()| (r1, r2, q));
         }
 
         subset_r1p.complete()
     };
 
     let requires = {
-
         // Create a new iteration context, ...
         let mut iteration2 = Iteration::new();
 
@@ -87,9 +84,8 @@ fn main() {
 
         // .. and then start iterating rules!
         while iteration2.changed() {
-
-            requires_rp.from_map(&requires, |&(r,b,p)| ((r,p),b));
-            requires_bp.from_map(&requires, |&(r,b,p)| ((b,p),r));
+            requires_rp.from_map(&requires, |&(r, b, p)| ((r, p), b));
+            requires_bp.from_map(&requires, |&(r, b, p)| ((b, p), r));
 
             // requires(R, B, P) :- borrow_region(R, B, P).
             // Already loaded; borrow_region is static.
@@ -105,16 +101,15 @@ fn main() {
             //   cfg_edge(P, Q),
             //   (region_live_at(R, Q); universal_region(R)).
 
-            requires_1.from_antijoin(&requires_bp, &killed, |&(b,p),&r| (p,(b,r)));
-            requires_2.from_join(&requires_1, &cfg_edge_p, |&_p, &(b,r), &q| ((r,q),b));
-            requires.from_join(&requires_2, &region_live_at, |&(r,q),&b,&()| (r,b,q));
+            requires_1.from_antijoin(&requires_bp, &killed, |&(b, p), &r| (p, (b, r)));
+            requires_2.from_join(&requires_1, &cfg_edge_p, |&_p, &(b, r), &q| ((r, q), b));
+            requires.from_join(&requires_2, &region_live_at, |&(r, q), &b, &()| (r, b, q));
         }
 
         requires.complete()
     };
 
-        // borrow_live_at(B, P) :- requires(R, B, P), region_live_at(R, P)
+    // borrow_live_at(B, P) :- requires(R, B, P), region_live_at(R, P)
 
-        // borrow_live_at(B, P) :- requires(R, B, P), universal_region(R).
-
+    // borrow_live_at(B, P) :- requires(R, B, P), universal_region(R).
 }
