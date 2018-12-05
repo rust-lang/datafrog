@@ -269,7 +269,7 @@ pub(crate) mod extend_anti {
         }
     }
 
-    impl<'a, Key: Ord, Val: Ord + 'a, Tuple: Ord, Func: Fn(&Tuple) -> Key> Leaper<Tuple, &'a Val>
+    impl<'a, Key, Val, Tuple, Func> Leaper<Tuple, &'a Val>
         for ExtendAnti<'a, Key, Val, Tuple, Func>
     where
         Key: Ord + 'a,
