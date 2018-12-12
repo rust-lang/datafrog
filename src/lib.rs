@@ -13,6 +13,7 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::io::Write;
 use std::iter::FromIterator;
 use std::rc::Rc;
 
@@ -200,24 +201,31 @@ impl<Tuple: Ord> std::ops::Deref for Relation<Tuple> {
 /// An `Iteration` tracks monotonic variables, and monitors their progress.
 /// It can inform the user if they have ceased changing, at which point the
 /// computation should be done.
+#[derive(Default)]
 pub struct Iteration {
     variables: Vec<Box<dyn VariableTrait>>,
+    round: u32,
+    debug_stats: Option<Box<dyn Write>>,
 }
 
 impl Iteration {
     /// Create a new iterative context.
     pub fn new() -> Self {
-        Iteration {
-            variables: Vec::new(),
-        }
+        Self::default()
     }
     /// Reports whether any of the monitored variables have changed since
     /// the most recent call.
     pub fn changed(&mut self) -> bool {
+        self.round += 1;
+
         let mut result = false;
         for variable in self.variables.iter_mut() {
             if variable.changed() {
                 result = true;
+            }
+
+            if let Some(ref mut stats_writer) = self.debug_stats {
+                variable.dump_stats(self.round, stats_writer);
             }
         }
         result
@@ -238,12 +246,25 @@ impl Iteration {
         self.variables.push(Box::new(variable.clone()));
         variable
     }
+
+    /// Set up this Iteration to write debug statistics about each variable,
+    /// for each round of the computation.
+    pub fn record_stats_to(&mut self, mut w: Box<dyn Write>) {
+        // print column names header
+        writeln!(w, "Variable,Round,Stable count,Recent count")
+            .expect("Couldn't write debug stats CSV header");
+
+        self.debug_stats = Some(w);
+    }
 }
 
 /// A type that can report on whether it has changed.
 trait VariableTrait {
     /// Reports whether the variable has changed since it was last asked.
     fn changed(&mut self) -> bool;
+
+    /// Dumps statistics about the variable internals, for debug and profiling purposes.
+    fn dump_stats(&self, round: u32, w: &mut dyn Write);
 }
 
 /// An monotonically increasing set of `Tuple`s.
@@ -553,6 +574,28 @@ impl<Tuple: Ord> VariableTrait for Variable<Tuple> {
         // println!("Variable\t{}\t{}\t{}", self.name, total, self.recent.borrow().len());
 
         !self.recent.borrow().is_empty()
+    }
+
+    fn dump_stats(&self, round: u32, w: &mut dyn Write) {
+        let mut stable_count = 0;
+        for tuple in self.stable.borrow().iter() {
+            stable_count += tuple.len();
+        }
+
+        writeln!(
+            w,
+            "{:?},{},{},{}",
+            self.name,
+            round,
+            stable_count,
+            self.recent.borrow().len()
+        )
+        .unwrap_or_else(|e| {
+            panic!(
+                "Couldn't write stats for variable {}, round {}: {}",
+                self.name, round, e
+            )
+        });
     }
 }
 
