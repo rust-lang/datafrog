@@ -116,7 +116,7 @@ pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T
     slice
 }
 
-pub(crate) trait JoinInput<'me, Tuple: Ord>: Copy {
+pub trait JoinInput<'me, Tuple: Ord>: Copy {
     type RecentTuples: Deref<Target = [Tuple]>;
     type StableTuples: Deref<Target = [Relation<Tuple>]>;
 
@@ -134,5 +134,18 @@ impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
 
     fn stable(self) -> Self::StableTuples {
         Ref::map(self.stable.borrow(), |v| &v[..])
+    }
+}
+
+impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
+    type RecentTuples = &'me [Tuple];
+    type StableTuples = &'me [Relation<Tuple>];
+
+    fn recent(self) -> Self::RecentTuples {
+        &[]
+    }
+
+    fn stable(self) -> Self::StableTuples {
+        std::slice::from_ref(self)
     }
 }
