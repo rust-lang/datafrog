@@ -111,6 +111,19 @@ impl<Tuple: Ord> Relation<Tuple> {
         join::join_into_relation(input1, input2, logic)
     }
 
+    /// Creates a `Relation` by removing all values from `input1` that
+    /// share a key with `input2`, and then transforming the reuslting
+    /// tuples with the `logic` closure. Like
+    /// [`Variable::from_antijoin`] except for use where the inputs
+    /// are not varying across iterations.
+    pub fn from_antijoin<Key: Ord, Val1: Ord>(
+        input1: &Relation<(Key, Val1)>,
+        input2: &Relation<Key>,
+        logic: impl FnMut(&Key, &Val1) -> Tuple,
+    ) -> Self {
+        join::antijoin(input1, input2, logic)
+    }
+
     /// Creates a `Relation` from a vector of tuples.
     pub fn from_vec(mut elements: Vec<Tuple>) -> Self {
         elements.sort();
@@ -264,6 +277,11 @@ impl<Tuple: Ord> Variable<Tuple> {
 
     /// Adds tuples from `input1` whose key is not present in `input2`.
     ///
+    /// Note that `input1` must be a variable: if you have a relation
+    /// instead, you can use `Relation::from_antijoin` and then
+    /// `Variable::insert`.  Note that the result will not vary during
+    /// the iteration.
+    ///
     /// # Examples
     ///
     /// This example starts a collection with the pairs (x, x+1) for x in 0 .. 10. It then
@@ -292,7 +310,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         input2: &Relation<K>,
         logic: impl FnMut(&K, &V) -> Tuple,
     ) {
-        join::antijoin_into(input1, input2, self, logic)
+        self.insert(join::antijoin(input1, input2, logic))
     }
 
     /// Adds tuples that result from mapping `input`.

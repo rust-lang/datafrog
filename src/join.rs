@@ -49,17 +49,15 @@ pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Or
 }
 
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
-pub(crate) fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val)>,
+pub(crate) fn antijoin<'me, Key: Ord, Val: Ord, Result: Ord>(
+    input1: impl JoinInput<'me, (Key, Val)>,
     input2: &Relation<Key>,
-    output: &Variable<Result>,
     mut logic: impl FnMut(&Key, &Val) -> Result,
-) {
+) -> Relation<Result> {
     let mut tuples2 = &input2[..];
 
     let results = input1
-        .recent
-        .borrow()
+        .recent()
         .iter()
         .filter(|(ref key, _)| {
             tuples2 = gallop(tuples2, |k| k < key);
@@ -68,7 +66,7 @@ pub(crate) fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
         .map(|(ref key, ref val)| logic(key, val))
         .collect::<Vec<_>>();
 
-    output.insert(Relation::from_vec(results));
+    Relation::from_vec(results)
 }
 
 fn join_helper<K: Ord, V1, V2>(
