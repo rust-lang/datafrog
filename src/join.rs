@@ -1,28 +1,51 @@
 //! Join functionality.
 
 use super::{Relation, Variable};
+use std::cell::Ref;
+use std::ops::Deref;
 
-pub fn join_into<Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: &Variable<(Key, Val2)>,
+pub trait JoinInput<'me, Tuple: Ord>: Copy {
+    type RecentTuples: Deref<Target = Relation<Tuple>>;
+    type StableTuples: Deref<Target = Vec<Relation<Tuple>>>;
+
+    fn recent(self) -> Self::RecentTuples;
+    fn stable(self) -> Self::StableTuples;
+}
+
+impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
+    type RecentTuples = Ref<'me, Relation<Tuple>>;
+    type StableTuples = Ref<'me, Vec<Relation<Tuple>>>;
+
+    fn recent(self) -> Self::RecentTuples {
+        self.recent.borrow()
+    }
+
+    fn stable(self) -> Self::StableTuples {
+        self.stable.borrow()
+    }
+}
+
+pub fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
+    input1: impl JoinInput<'me, (Key, Val1)>,
+    input2: impl JoinInput<'me, (Key, Val2)>,
     output: &Variable<Result>,
     mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
 ) {
     let mut results = Vec::new();
 
-    let recent1 = input1.recent.borrow();
-    let recent2 = input2.recent.borrow();
+    let recent1 = input1.recent();
+    let recent2 = input2.recent();
 
     {
         // scoped to let `closure` drop borrow of `results`.
 
         let mut closure = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
 
-        for batch2 in input2.stable.borrow().iter() {
+        for batch2 in input2.stable().iter() {
             join_helper(&recent1, &batch2, &mut closure);
         }
 
-        for batch1 in input1.stable.borrow().iter() {
+        for batch1 in input1.stable().iter() {
             join_helper(&batch1, &recent2, &mut closure);
         }
 
