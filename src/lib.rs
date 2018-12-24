@@ -148,6 +148,15 @@ impl<Tuple: Ord> FromIterator<Tuple> for Relation<Tuple> {
     }
 }
 
+impl<'tuple, Tuple: 'tuple + Copy + Ord> FromIterator<&'tuple Tuple> for Relation<Tuple> {
+    fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = &'tuple Tuple>
+    {
+        Relation::from_vec(iterator.into_iter().cloned().collect())
+    }
+}
+
 impl<Tuple: Ord> std::ops::Deref for Relation<Tuple> {
     type Target = [Tuple];
     fn deref(&self) -> &Self::Target {
