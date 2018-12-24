@@ -4,27 +4,6 @@ use super::{Relation, Variable};
 use std::cell::Ref;
 use std::ops::Deref;
 
-pub(crate) trait JoinInput<'me, Tuple: Ord>: Copy {
-    type RecentTuples: Deref<Target = Relation<Tuple>>;
-    type StableTuples: Deref<Target = Vec<Relation<Tuple>>>;
-
-    fn recent(self) -> Self::RecentTuples;
-    fn stable(self) -> Self::StableTuples;
-}
-
-impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
-    type RecentTuples = Ref<'me, Relation<Tuple>>;
-    type StableTuples = Ref<'me, Vec<Relation<Tuple>>>;
-
-    fn recent(self) -> Self::RecentTuples {
-        self.recent.borrow()
-    }
-
-    fn stable(self) -> Self::StableTuples {
-        self.stable.borrow()
-    }
-}
-
 pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     input1: impl JoinInput<'me, (Key, Val1)>,
     input2: impl JoinInput<'me, (Key, Val2)>,
@@ -135,4 +114,25 @@ pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T
     }
 
     slice
+}
+
+pub(crate) trait JoinInput<'me, Tuple: Ord>: Copy {
+    type RecentTuples: Deref<Target = [Tuple]>;
+    type StableTuples: Deref<Target = [Relation<Tuple>]>;
+
+    fn recent(self) -> Self::RecentTuples;
+    fn stable(self) -> Self::StableTuples;
+}
+
+impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
+    type RecentTuples = Ref<'me, [Tuple]>;
+    type StableTuples = Ref<'me, [Relation<Tuple>]>;
+
+    fn recent(self) -> Self::RecentTuples {
+        Ref::map(self.recent.borrow(), |r| &r.elements[..])
+    }
+
+    fn stable(self) -> Self::StableTuples {
+        Ref::map(self.stable.borrow(), |v| &v[..])
+    }
 }
