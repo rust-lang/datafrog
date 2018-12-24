@@ -224,7 +224,7 @@ impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
 
 pub(crate) mod extend_with {
     use super::{binary_search, Leaper, Relation};
-    use join::gallop;
+    use crate::join::gallop;
 
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct ExtendWith<'a, Key, Val, Tuple, Func>
@@ -291,7 +291,7 @@ pub(crate) mod extend_with {
 
 pub(crate) mod extend_anti {
     use super::{binary_search, Leaper, Relation};
-    use join::gallop;
+    use crate::join::gallop;
 
     /// Wraps a Relation<Tuple> as a leaper.
     pub struct ExtendAnti<'a, Key, Val, Tuple, Func>

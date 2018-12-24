@@ -18,7 +18,7 @@ use std::rc::Rc;
 mod join;
 mod map;
 mod treefrog;
-pub use treefrog::{
+pub use crate::treefrog::{
     extend_anti::ExtendAnti,
     extend_with::ExtendWith,
     filter_anti::FilterAnti,
