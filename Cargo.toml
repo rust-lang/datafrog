@@ -7,6 +7,7 @@ description = "Lightweight Datalog engine intended to be embedded in other Rust 
 readme = "README.md"
 keywords = ["datalog", "analysis"]
 repository = "https://github.com/rust-lang-nursery/datafrog"
+edition = "2018"
 
 [badges]
 is-it-maintained-issue-resolution = { repository = "https://github.com/rust-lang-nursery/datafrog" }
