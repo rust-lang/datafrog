@@ -14,6 +14,7 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
+use std::iter::FromIterator;
 
 mod join;
 mod map;
@@ -134,6 +135,15 @@ impl<Tuple: Ord> Relation<Tuple> {
 
 impl<Tuple: Ord, I: IntoIterator<Item = Tuple>> From<I> for Relation<Tuple> {
     fn from(iterator: I) -> Self {
+        Self::from_iter(iterator)
+    }
+}
+
+impl<Tuple: Ord> FromIterator<Tuple> for Relation<Tuple> {
+    fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = Tuple>
+    {
         Relation::from_vec(iterator.into_iter().collect())
     }
 }

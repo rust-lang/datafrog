@@ -31,7 +31,7 @@ fn reachable_with_var_join(edges: &[(u32, u32)]) -> Relation<(u32, u32)> {
 
 /// Like `reachable`, but using a relation as an input to `from_join`
 fn reachable_with_relation_join(edges: &[(u32, u32)]) -> Relation<(u32, u32)> {
-    let edges = Relation::from(edges.iter().cloned());
+    let edges: Relation<_> = edges.iter().cloned().collect();
     let mut iteration = Iteration::new();
 
     // NB. Changed from `reachable_with_var_join`:
