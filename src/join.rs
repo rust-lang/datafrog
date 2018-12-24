@@ -4,7 +4,7 @@ use super::{Relation, Variable};
 use std::cell::Ref;
 use std::ops::Deref;
 
-pub trait JoinInput<'me, Tuple: Ord>: Copy {
+pub(crate) trait JoinInput<'me, Tuple: Ord>: Copy {
     type RecentTuples: Deref<Target = Relation<Tuple>>;
     type StableTuples: Deref<Target = Vec<Relation<Tuple>>>;
 
@@ -25,7 +25,7 @@ impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
     }
 }
 
-pub fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
+pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     input1: impl JoinInput<'me, (Key, Val1)>,
     input2: impl JoinInput<'me, (Key, Val2)>,
     output: &Variable<Result>,
@@ -56,7 +56,7 @@ pub fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
 }
 
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
-pub fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
+pub(crate) fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
     input1: &Variable<(Key, Val)>,
     input2: &Relation<Key>,
     output: &Variable<Result>,
@@ -114,7 +114,7 @@ fn join_helper<K: Ord, V1, V2>(
     }
 }
 
-pub fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T] {
+pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T] {
     // if empty slice, or already >= element, return
     if !slice.is_empty() && cmp(&slice[0]) {
         let mut step = 1;
