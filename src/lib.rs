@@ -17,6 +17,7 @@ use std::rc::Rc;
 
 mod join;
 mod map;
+mod test;
 mod treefrog;
 pub use crate::treefrog::{
     extend_anti::ExtendAnti,

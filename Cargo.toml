@@ -12,3 +12,6 @@ edition = "2018"
 [badges]
 is-it-maintained-issue-resolution = { repository = "https://github.com/rust-lang-nursery/datafrog" }
 is-it-maintained-open-issues = { repository = "https://github.com/rust-lang-nursery/datafrog" }
+
+[dev-dependencies]
+proptest = "0.8.7"
