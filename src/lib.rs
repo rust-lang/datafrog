@@ -19,6 +19,7 @@ mod join;
 mod map;
 mod test;
 mod treefrog;
+pub use crate::join::JoinInput;
 pub use crate::treefrog::{
     extend_anti::ExtendAnti,
     extend_with::ExtendWith,
@@ -98,7 +99,20 @@ impl<Tuple: Ord> Relation<Tuple> {
         Relation { elements }
     }
 
-    fn from_vec(mut elements: Vec<Tuple>) -> Self {
+    /// Creates a `Relation` by joining the values from `input1` and
+    /// `input2` and then applying `logic`. Like
+    /// [`Variable::from_join`] except for use where the inputs are
+    /// not varying across iterations.
+    pub fn from_join<Key: Ord, Val1: Ord, Val2: Ord>(
+        input1: &Relation<(Key, Val1)>,
+        input2: &Relation<(Key, Val2)>,
+        logic: impl FnMut(&Key, &Val1, &Val2) -> Tuple,
+    ) -> Self {
+        join::join_into_relation(input1, input2, logic)
+    }
+
+    /// Creates a `Relation` from a vector of tuples.
+    pub fn from_vec(mut elements: Vec<Tuple>) -> Self {
         elements.sort();
         elements.dedup();
         Relation { elements }
@@ -201,7 +215,22 @@ pub struct Variable<Tuple: Ord> {
 
 // Operator implementations.
 impl<Tuple: Ord> Variable<Tuple> {
-    /// Adds tuples that result from joining `input1` and `input2`.
+    /// Adds tuples that result from joining `input1` and `input2` --
+    /// each of the inputs must be a set of (Key, Value) tuples. Both
+    /// `input1` and `input2` must have the same type of key (`K`) but
+    /// they can have distinct value types (`V1` and `V2`
+    /// respectively). The `logic` closure will be invoked for each
+    /// key that appears in both inputs; it is also given the two
+    /// values, and from those it should construct the resulting
+    /// value.
+    ///
+    /// Note that `input1` must be a variable, but `input2` can be a
+    /// relation or a variable. Therefore, you cannot join two
+    /// relations with this method. This is not because the result
+    /// would be wrong, but because it would be inefficient: the
+    /// result from such a join cannot vary across iterations (as
+    /// relations are fixed), so you should prefer to invoke `insert`
+    /// on a relation created by `Relation::from_join` instead.
     ///
     /// # Examples
     ///
@@ -224,10 +253,10 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join<'me, K: Ord, V1: Ord, V2: Ord>(
         &self,
-        input1: &Variable<(K, V1)>,
-        input2: &Variable<(K, V2)>,
+        input1: &'me Variable<(K, V1)>,
+        input2: impl JoinInput<'me, (K, V2)>,
         logic: impl FnMut(&K, &V1, &V2) -> Tuple,
     ) {
         join::join_into(input1, input2, self, logic)

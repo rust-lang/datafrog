@@ -34,6 +34,20 @@ pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     output.insert(Relation::from_vec(results));
 }
 
+pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
+    input1: &Relation<(Key, Val1)>,
+    input2: &Relation<(Key, Val2)>,
+    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
+) -> Relation<Result> {
+    let mut results = Vec::new();
+
+    join_helper(&input1.elements, &input2.elements, |k, v1, v2| {
+        results.push(logic(k, v1, v2));
+    });
+
+    Relation::from_vec(results)
+}
+
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
 pub(crate) fn antijoin_into<Key: Ord, Val: Ord, Result: Ord>(
     input1: &Variable<(Key, Val)>,
@@ -116,11 +130,22 @@ pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T
     slice
 }
 
+/// An input that can be used with `from_join`; either a `Variable` or a `Relation`.
 pub trait JoinInput<'me, Tuple: Ord>: Copy {
+    /// If we are on iteration N of the loop, these are the tuples
+    /// added on iteration N-1. (For a `Relation`, this is always an
+    /// empty slice.)
     type RecentTuples: Deref<Target = [Tuple]>;
+
+    /// If we are on iteration N of the loop, these are the tuples
+    /// added on iteration N - 2 or before. (For a `Relation`, this is
+    /// just `self`.)
     type StableTuples: Deref<Target = [Relation<Tuple>]>;
 
+    /// Get the set of recent tuples.
     fn recent(self) -> Self::RecentTuples;
+
+    /// Get the set of stable tuples.
     fn stable(self) -> Self::StableTuples;
 }
 
