@@ -398,7 +398,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) {
-        treefrog::leapjoin_into(source, leapers, self, logic)
+        self.insert(treefrog::leapjoin(source, leapers, logic));
     }
 }
 

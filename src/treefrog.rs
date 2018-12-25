@@ -3,12 +3,11 @@
 use super::{Relation, Variable};
 
 /// Performs treefrog leapjoin using a list of leapers.
-pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
+pub(crate) fn leapjoin<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
     source: &Variable<Tuple>,
     leapers: &mut [&mut dyn Leaper<'a, Tuple, Val>],
-    output: &Variable<Result>,
     mut logic: impl FnMut(&Tuple, &Val) -> Result,
-) {
+) -> Relation<Result> {
     let mut result = Vec::new(); // temp output storage.
     let mut values = Vec::new(); // temp value storage.
 
@@ -46,7 +45,7 @@ pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
         }
     }
 
-    output.insert(Relation::from_vec(result));
+    Relation::from_vec(result)
 }
 
 /// Methods to support treefrog leapjoin.
