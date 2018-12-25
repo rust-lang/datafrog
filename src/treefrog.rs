@@ -46,7 +46,7 @@ pub fn leapjoin_into<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
         }
     }
 
-    output.insert(result.into());
+    output.insert(Relation::from_vec(result));
 }
 
 /// Methods to support treefrog leapjoin.
