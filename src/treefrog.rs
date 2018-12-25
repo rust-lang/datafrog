@@ -1,17 +1,17 @@
 //! Join functionality.
 
-use super::{Relation, Variable};
+use super::Relation;
 
 /// Performs treefrog leapjoin using a list of leapers.
 pub(crate) fn leapjoin<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
-    source: &Variable<Tuple>,
+    source: &[Tuple],
     leapers: &mut [&mut dyn Leaper<'a, Tuple, Val>],
     mut logic: impl FnMut(&Tuple, &Val) -> Result,
 ) -> Relation<Result> {
     let mut result = Vec::new(); // temp output storage.
     let mut values = Vec::new(); // temp value storage.
 
-    for tuple in source.recent.borrow().iter() {
+    for tuple in source {
         // Determine which leaper would propose the fewest values.
         let mut min_index = usize::max_value();
         let mut min_count = usize::max_value();

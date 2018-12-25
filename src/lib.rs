@@ -100,6 +100,16 @@ impl<Tuple: Ord> Relation<Tuple> {
         Relation { elements }
     }
 
+    /// Creates a `Relation` using the `leapjoin` logic;
+    /// see [`Variable::leapjoin`]
+    pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
+        source: &Relation<SourceTuple>,
+        leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
+        logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
+    ) -> Self {
+        treefrog::leapjoin(&source.elements, leapers, logic)
+    }
+
     /// Creates a `Relation` by joining the values from `input1` and
     /// `input2` and then applying `logic`. Like
     /// [`Variable::from_join`] except for use where the inputs are
@@ -398,7 +408,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) {
-        self.insert(treefrog::leapjoin(source, leapers, logic));
+        self.insert(treefrog::leapjoin(&source.recent.borrow(), leapers, logic));
     }
 }
 
