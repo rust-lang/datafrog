@@ -133,9 +133,9 @@ impl<Tuple: Ord> Relation<Tuple> {
     }
 }
 
-impl<Tuple: Ord, I: IntoIterator<Item = Tuple>> From<I> for Relation<Tuple> {
-    fn from(iterator: I) -> Self {
-        Self::from_iter(iterator)
+impl<Tuple: Ord> From<Vec<Tuple>> for Relation<Tuple> {
+    fn from(iterator: Vec<Tuple>) -> Self {
+        Self::from_vec(iterator)
     }
 }
 
@@ -275,8 +275,8 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x + 1))));
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x + 1, x))));
+    /// variable.insert((0 .. 10).map(|x| (x, x + 1)).collect());
+    /// variable.insert((0 .. 10).map(|x| (x + 1, x)).collect());
     ///
     /// while iteration.changed() {
     ///     variable.from_join(&variable, &variable, |&key, &val1, &val2| (val1, val2));
@@ -312,9 +312,9 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x + 1))));
+    /// variable.insert((0 .. 10).map(|x| (x, x + 1)).collect());
     ///
-    /// let relation = Relation::from((0 .. 10).filter(|x| x % 3 == 0));
+    /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).collect();
     ///
     /// while iteration.changed() {
     ///     variable.from_antijoin(&variable, &relation, |&key, &val| (val, key));
@@ -346,7 +346,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x))));
+    /// variable.insert((0 .. 10).map(|x| (x, x)).collect());
     ///
     /// while iteration.changed() {
     ///     variable.from_map(&variable, |&(key, val)|
