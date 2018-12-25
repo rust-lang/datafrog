@@ -285,8 +285,8 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert((0 .. 10).map(|x| (x, x + 1)).collect());
-    /// variable.insert((0 .. 10).map(|x| (x + 1, x)).collect());
+    /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
+    /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
     ///
     /// while iteration.changed() {
     ///     variable.from_join(&variable, &variable, |&key, &val1, &val2| (val1, val2));
@@ -322,7 +322,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert((0 .. 10).map(|x| (x, x + 1)).collect());
+    /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
     ///
     /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).collect();
     ///
@@ -356,7 +356,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert((0 .. 10).map(|x| (x, x)).collect());
+    /// variable.extend((0 .. 10).map(|x| (x, x)));
     ///
     /// while iteration.changed() {
     ///     variable.from_map(&variable, |&(key, val)|
@@ -434,6 +434,7 @@ impl<Tuple: Ord> Variable<Tuple> {
             to_add: Rc::new(RefCell::new(Vec::new())),
         }
     }
+
     /// Inserts a relation into the variable.
     ///
     /// This is most commonly used to load initial values into a variable.
@@ -444,6 +445,18 @@ impl<Tuple: Ord> Variable<Tuple> {
             self.to_add.borrow_mut().push(relation);
         }
     }
+
+    /// Extend the variable with values from the iterator.
+    ///
+    /// This is most commonly used to load initial values into a variable.
+    /// it is not obvious that it should be commonly used otherwise, but
+    /// it should not be harmful.
+    pub fn extend<T>(&self, iterator: impl IntoIterator<Item = T>)
+        where Relation<Tuple>: FromIterator<T>
+    {
+        self.insert(iterator.into_iter().collect());
+    }
+
     /// Consumes the variable and returns a relation.
     ///
     /// This method removes the ability for the variable to develop, and

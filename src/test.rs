@@ -16,7 +16,7 @@ fn reachable_with_var_join(edges: &[(u32, u32)]) -> Relation<(u32, u32)> {
     let mut iteration = Iteration::new();
 
     let edges_by_successor = iteration.variable::<(u32, u32)>("edges_invert");
-    edges_by_successor.insert(edges.iter().map(|&(n1, n2)| (n2, n1)).collect());
+    edges_by_successor.extend(edges.iter().map(|&(n1, n2)| (n2, n1)));
 
     let reachable = iteration.variable::<(u32, u32)>("reachable");
     reachable.insert(edges);
@@ -78,10 +78,10 @@ fn sum_join_via_var(
     let mut iteration = Iteration::new();
 
     let input1 = iteration.variable::<(u32, u32)>("input1");
-    input1.insert(input1_slice.iter().collect());
+    input1.extend(input1_slice);
 
     let input2 = iteration.variable::<(u32, u32)>("input1");
-    input2.insert(input2_slice.iter().collect());
+    input2.extend(input2_slice);
 
     let output = iteration.variable::<(u32, u32)>("output");
 
