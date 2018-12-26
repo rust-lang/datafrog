@@ -13,8 +13,8 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::rc::Rc;
 use std::iter::FromIterator;
+use std::rc::Rc;
 
 mod join;
 mod map;
@@ -44,8 +44,12 @@ pub struct Relation<Tuple: Ord> {
 impl<Tuple: Ord> Relation<Tuple> {
     /// Merges two relations into their union.
     pub fn merge(self, other: Self) -> Self {
-        let Relation { elements: mut elements1 } = self;
-        let Relation { elements: mut elements2 } = other;
+        let Relation {
+            elements: mut elements1,
+        } = self;
+        let Relation {
+            elements: mut elements2,
+        } = other;
 
         // If one of the element lists is zero-length, we don't need to do any work
         if elements1.is_empty() {
@@ -105,7 +109,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// Same as the `from_iter` method from `std::iter::FromIterator` trait.
     pub fn from_iter<I>(iterator: I) -> Self
     where
-        I: IntoIterator<Item = Tuple>
+        I: IntoIterator<Item = Tuple>,
     {
         iterator.into_iter().collect()
     }
@@ -169,7 +173,7 @@ impl<Tuple: Ord> From<Vec<Tuple>> for Relation<Tuple> {
 impl<Tuple: Ord> FromIterator<Tuple> for Relation<Tuple> {
     fn from_iter<I>(iterator: I) -> Self
     where
-        I: IntoIterator<Item = Tuple>
+        I: IntoIterator<Item = Tuple>,
     {
         Relation::from_vec(iterator.into_iter().collect())
     }
@@ -178,7 +182,7 @@ impl<Tuple: Ord> FromIterator<Tuple> for Relation<Tuple> {
 impl<'tuple, Tuple: 'tuple + Copy + Ord> FromIterator<&'tuple Tuple> for Relation<Tuple> {
     fn from_iter<I>(iterator: I) -> Self
     where
-        I: IntoIterator<Item = &'tuple Tuple>
+        I: IntoIterator<Item = &'tuple Tuple>,
     {
         Relation::from_vec(iterator.into_iter().cloned().collect())
     }
@@ -469,7 +473,8 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// it is not obvious that it should be commonly used otherwise, but
     /// it should not be harmful.
     pub fn extend<T>(&self, iterator: impl IntoIterator<Item = T>)
-        where Relation<Tuple>: FromIterator<T>
+    where
+        Relation<Tuple>: FromIterator<T>,
     {
         self.insert(iterator.into_iter().collect());
     }
