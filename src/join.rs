@@ -4,8 +4,13 @@ use super::{Relation, Variable};
 use std::cell::Ref;
 use std::ops::Deref;
 
+/// Implements `join`. Note that `input1` must be a variable, but
+/// `input2` can be either a variable or a relation. This is necessary
+/// because relations have no "recent" tuples, so the fn would be a
+/// guaranteed no-op if both arguments were relations.  See also
+/// `join_into_relation`.
 pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: impl JoinInput<'me, (Key, Val1)>,
+    input1: &Variable<(Key, Val1)>,
     input2: impl JoinInput<'me, (Key, Val2)>,
     output: &Variable<Result>,
     mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
@@ -34,6 +39,7 @@ pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     output.insert(Relation::from_vec(results));
 }
 
+/// Join, but for two relations.
 pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     input1: &Relation<(Key, Val1)>,
     input2: &Relation<(Key, Val2)>,
