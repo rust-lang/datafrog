@@ -100,6 +100,16 @@ impl<Tuple: Ord> Relation<Tuple> {
         Relation { elements }
     }
 
+    /// Creates a `Relation` from the elements of the `iterator`.
+    ///
+    /// Same as the `from_iter` method from `std::iter::FromIterator` trait.
+    pub fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = Tuple>
+    {
+        iterator.into_iter().collect()
+    }
+
     /// Creates a `Relation` using the `leapjoin` logic;
     /// see [`Variable::leapjoin`]
     pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
@@ -138,7 +148,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// Construct a new relation by mapping another one. Equivalent to
     /// creating an iterator but perhaps more convenient. Analogous to
     /// `Variable::from_map`.
-    pub fn from_map<T2: Ord>(&self, input: &Relation<T2>, logic: impl FnMut(&T2) -> Tuple) -> Self {
+    pub fn from_map<T2: Ord>(input: &Relation<T2>, logic: impl FnMut(&T2) -> Tuple) -> Self {
         input.iter().map(logic).collect()
     }
 
