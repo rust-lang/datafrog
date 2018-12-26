@@ -61,7 +61,7 @@ fn reachable_with_leapfrog(edges: &[(u32, u32)]) -> Relation<(u32, u32)> {
         // reachable(N1, N3) :- edges(N1, N2), reachable(N2, N3).
         reachable.from_leapjoin(
             &reachable,
-            &mut [&mut edges_by_successor.extend_with(|&(n2, _)| n2)],
+            edges_by_successor.extend_with(|&(n2, _)| n2),
             |&(_, n3), &n1| (n1, n3),
         );
     }
@@ -125,6 +125,46 @@ proptest! {
         let output2 = sum_join_via_relation(&set1, &set2);
         assert_eq!(output1.elements, output2.elements);
     }
+
+    /// Test the behavior of `filter_anti` used on its own in a
+    /// leapjoin -- effectively it becomes an "intersection"
+    /// operation.
+    #[test]
+    fn filter_with_on_its_own((set1, set2) in (inputs(), inputs())) {
+        let input1: Relation<(u32, u32)> = set1.iter().collect();
+        let input2: Relation<(u32, u32)> = set2.iter().collect();
+        let intersection1 = Relation::from_leapjoin(
+            &input1,
+            input2.filter_with(|&tuple| tuple),
+            |&tuple, &()| tuple,
+        );
+
+        let intersection2: Relation<(u32, u32)> = input1.elements.iter()
+            .filter(|t| input2.elements.binary_search(&t).is_ok())
+            .collect();
+
+        assert_eq!(intersection1.elements, intersection2.elements);
+    }
+
+    /// Test the behavior of `filter_anti` used on its own in a
+    /// leapjoin -- effectively it becomes a "set minus" operation.
+    #[test]
+    fn filter_anti_on_its_own((set1, set2) in (inputs(), inputs())) {
+        let input1: Relation<(u32, u32)> = set1.iter().collect();
+        let input2: Relation<(u32, u32)> = set2.iter().collect();
+
+        let difference1 = Relation::from_leapjoin(
+            &input1,
+            input2.filter_anti(|&tuple| tuple),
+            |&tuple, &()| tuple,
+        );
+
+        let difference2: Relation<(u32, u32)> = input1.elements.iter()
+            .filter(|t| input2.elements.binary_search(&t).is_err())
+            .collect();
+
+        assert_eq!(difference1.elements, difference2.elements);
+    }
 }
 
 /// Test that `from_leapjoin` matches against the tuples from an
@@ -144,7 +184,7 @@ fn leapjoin_from_extend() {
     while iteration.changed() {
         variable.from_leapjoin(
             &variable,
-            &mut [&mut doubles.extend_with(|&(i, _)| i)],
+            doubles.extend_with(|&(i, _)| i),
             |&(i, _), &j| (i, j),
         );
     }

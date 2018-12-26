@@ -27,7 +27,7 @@ pub use crate::treefrog::{
     filter_anti::FilterAnti,
     filter_with::FilterWith,
     filters::{PrefixFilter, ValueFilter},
-    Leaper, RelationLeaper,
+    Leaper, Leapers, RelationLeaper,
 };
 
 /// A static, ordered list of key-value pairs.
@@ -116,9 +116,9 @@ impl<Tuple: Ord> Relation<Tuple> {
 
     /// Creates a `Relation` using the `leapjoin` logic;
     /// see [`Variable::leapjoin`]
-    pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
+    pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         source: &Relation<SourceTuple>,
-        leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
+        leapers: impl Leapers<'leap, SourceTuple, Val>,
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) -> Self {
         treefrog::leapjoin(&source.elements, leapers, logic)
@@ -409,8 +409,9 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///   some dynamic variable `source` of source tuples (`SourceTuple`)
     ///   with some set of values (of type `Val`).
     /// - You provide these values by combining `source` with a set of leapers
-    ///   `leapers`, each of which is derived from a fixed relation. You can create
-    ///   a leaper in one of two ways:
+    ///   `leapers`, each of which is derived from a fixed relation. The `leapers`
+    ///   should be either a single leaper (of suitable type) or else a tuple of leapers.
+    ///   You can create a leaper in one of two ways:
     ///   - Extension: In this case, you have a relation of type `(K, Val)` for some
     ///     type `K`. You provide a closure that maps from `SourceTuple` to the key
     ///     `K`. If you use `relation.extend_with`, then any `Val` values the
@@ -423,10 +424,10 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// - Finally, you get a callback `logic` that accepts each `(SourceTuple, Val)`
     ///   that was successfully joined (and not filtered) and which maps to the
     ///   type of this variable.
-    pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
+    pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         &self,
         source: &Variable<SourceTuple>,
-        leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
+        leapers: impl Leapers<'leap, SourceTuple, Val>,
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) {
         self.insert(treefrog::leapjoin(&source.recent.borrow(), leapers, logic));
