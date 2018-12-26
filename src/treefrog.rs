@@ -5,7 +5,7 @@ use super::Relation;
 /// Performs treefrog leapjoin using a list of leapers.
 pub(crate) fn leapjoin<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
     source: &[Tuple],
-    leapers: &mut [&mut dyn Leaper<'a, Tuple, Val>],
+    mut leapers: &mut [&mut dyn Leaper<'a, Tuple, Val>],
     mut logic: impl FnMut(&Tuple, &Val) -> Result,
 ) -> Relation<Result> {
     let mut result = Vec::new(); // temp output storage.
@@ -15,30 +15,26 @@ pub(crate) fn leapjoin<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
         // Determine which leaper would propose the fewest values.
         let mut min_index = usize::max_value();
         let mut min_count = usize::max_value();
-        for index in 0..leapers.len() {
-            let count = leapers[index].count(tuple);
+        leapers.for_each_count(tuple, |index, count| {
             if min_count > count {
                 min_count = count;
                 min_index = index;
             }
-        }
+        });
 
         // We had best have at least one relation restricting values.
         assert!(min_count < usize::max_value());
 
-        // If there are values to propose ..
+        // If there are values to propose:
         if min_count > 0 {
-            // Propose them, ..
-            leapers[min_index].propose(tuple, &mut values);
+            // Push the values that `min_index` "proposes" into `values`.
+            leapers.propose(tuple, min_index, &mut values);
 
-            // Intersect them, ..
-            for index in 0..leapers.len() {
-                if index != min_index {
-                    leapers[index].intersect(tuple, &mut values);
-                }
-            }
+            // Give other leapers a chance to remove values from
+            // anti-joins or filters.
+            leapers.intersect(tuple, min_index, &mut values);
 
-            // Respond to each of them.
+            // Push remaining items into result.
             for val in values.drain(..) {
                 result.push(logic(tuple, val));
             }
@@ -46,6 +42,35 @@ pub(crate) fn leapjoin<'a, Tuple: Ord, Val: Ord + 'a, Result: Ord>(
     }
 
     Relation::from_vec(result)
+}
+
+pub trait Leapers<'a, Tuple, Val> {
+    fn for_each_count(&mut self, tuple: &Tuple, op: impl FnMut(usize, usize));
+
+    fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'a Val>);
+
+    fn intersect(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'a Val>);
+}
+
+impl<'a, Tuple, Val> Leapers<'a, Tuple, Val> for &mut [&mut dyn Leaper<'a, Tuple, Val>] {
+    fn for_each_count(&mut self, tuple: &Tuple, mut op: impl FnMut(usize, usize)) {
+        for (index, leaper) in self.iter_mut().enumerate() {
+            let count = leaper.count(tuple);
+            op(index, count);
+        }
+    }
+
+    fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'a Val>) {
+        self[min_index].propose(tuple, values);
+    }
+
+    fn intersect(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'a Val>) {
+        for (index, leaper) in self.iter_mut().enumerate() {
+            if index != min_index {
+                leaper.intersect(tuple, values);
+            }
+        }
+    }
 }
 
 /// Methods to support treefrog leapjoin.
