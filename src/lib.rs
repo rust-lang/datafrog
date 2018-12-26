@@ -44,8 +44,8 @@ pub struct Relation<Tuple: Ord> {
 impl<Tuple: Ord> Relation<Tuple> {
     /// Merges two relations into their union.
     pub fn merge(self, other: Self) -> Self {
-        let mut elements1 = self.elements;
-        let mut elements2 = other.elements;
+        let Relation { elements: mut elements1 } = self;
+        let Relation { elements: mut elements2 } = other;
 
         // If one of the element lists is zero-length, we don't need to do any work
         if elements1.is_empty() {
@@ -133,6 +133,13 @@ impl<Tuple: Ord> Relation<Tuple> {
         logic: impl FnMut(&Key, &Val1) -> Tuple,
     ) -> Self {
         join::antijoin(input1, input2, logic)
+    }
+
+    /// Construct a new relation by mapping another one. Equivalent to
+    /// creating an iterator but perhaps more convenient. Analogous to
+    /// `Variable::from_map`.
+    pub fn from_map<T2: Ord>(&self, input: &Relation<T2>, logic: impl FnMut(&T2) -> Tuple) -> Self {
+        input.iter().map(logic).collect()
     }
 
     /// Creates a `Relation` from a vector of tuples.
