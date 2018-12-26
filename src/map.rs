@@ -2,7 +2,7 @@
 
 use super::{Relation, Variable};
 
-pub fn map_into<T1: Ord, T2: Ord>(
+pub(crate) fn map_into<T1: Ord, T2: Ord>(
     input: &Variable<T1>,
     output: &Variable<T2>,
     logic: impl FnMut(&T1) -> T2,
