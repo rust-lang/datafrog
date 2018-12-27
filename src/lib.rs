@@ -137,7 +137,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     }
 
     /// Creates a `Relation` by removing all values from `input1` that
-    /// share a key with `input2`, and then transforming the reuslting
+    /// share a key with `input2`, and then transforming the resulting
     /// tuples with the `logic` closure. Like
     /// [`Variable::from_antijoin`] except for use where the inputs
     /// are not varying across iterations.
