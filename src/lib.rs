@@ -13,18 +13,21 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::iter::FromIterator;
 use std::rc::Rc;
 
 mod join;
 mod map;
+mod test;
 mod treefrog;
-pub use treefrog::{
+pub use crate::join::JoinInput;
+pub use crate::treefrog::{
     extend_anti::ExtendAnti,
     extend_with::ExtendWith,
     filter_anti::FilterAnti,
     filter_with::FilterWith,
     filters::{PrefixFilter, ValueFilter},
-    Leaper, RelationLeaper,
+    Leaper, Leapers, RelationLeaper,
 };
 
 /// A static, ordered list of key-value pairs.
@@ -41,8 +44,12 @@ pub struct Relation<Tuple: Ord> {
 impl<Tuple: Ord> Relation<Tuple> {
     /// Merges two relations into their union.
     pub fn merge(self, other: Self) -> Self {
-        let mut elements1 = self.elements;
-        let mut elements2 = other.elements;
+        let Relation {
+            elements: mut elements1,
+        } = self;
+        let Relation {
+            elements: mut elements2,
+        } = other;
 
         // If one of the element lists is zero-length, we don't need to do any work
         if elements1.is_empty() {
@@ -97,16 +104,87 @@ impl<Tuple: Ord> Relation<Tuple> {
         Relation { elements }
     }
 
-    fn from_vec(mut elements: Vec<Tuple>) -> Self {
+    /// Creates a `Relation` from the elements of the `iterator`.
+    ///
+    /// Same as the `from_iter` method from `std::iter::FromIterator` trait.
+    pub fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = Tuple>,
+    {
+        iterator.into_iter().collect()
+    }
+
+    /// Creates a `Relation` using the `leapjoin` logic;
+    /// see [`Variable::leapjoin`]
+    pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
+        source: &Relation<SourceTuple>,
+        leapers: impl Leapers<'leap, SourceTuple, Val>,
+        logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
+    ) -> Self {
+        treefrog::leapjoin(&source.elements, leapers, logic)
+    }
+
+    /// Creates a `Relation` by joining the values from `input1` and
+    /// `input2` and then applying `logic`. Like
+    /// [`Variable::from_join`] except for use where the inputs are
+    /// not varying across iterations.
+    pub fn from_join<Key: Ord, Val1: Ord, Val2: Ord>(
+        input1: &Relation<(Key, Val1)>,
+        input2: &Relation<(Key, Val2)>,
+        logic: impl FnMut(&Key, &Val1, &Val2) -> Tuple,
+    ) -> Self {
+        join::join_into_relation(input1, input2, logic)
+    }
+
+    /// Creates a `Relation` by removing all values from `input1` that
+    /// share a key with `input2`, and then transforming the resulting
+    /// tuples with the `logic` closure. Like
+    /// [`Variable::from_antijoin`] except for use where the inputs
+    /// are not varying across iterations.
+    pub fn from_antijoin<Key: Ord, Val1: Ord>(
+        input1: &Relation<(Key, Val1)>,
+        input2: &Relation<Key>,
+        logic: impl FnMut(&Key, &Val1) -> Tuple,
+    ) -> Self {
+        join::antijoin(input1, input2, logic)
+    }
+
+    /// Construct a new relation by mapping another one. Equivalent to
+    /// creating an iterator but perhaps more convenient. Analogous to
+    /// `Variable::from_map`.
+    pub fn from_map<T2: Ord>(input: &Relation<T2>, logic: impl FnMut(&T2) -> Tuple) -> Self {
+        input.iter().map(logic).collect()
+    }
+
+    /// Creates a `Relation` from a vector of tuples.
+    pub fn from_vec(mut elements: Vec<Tuple>) -> Self {
         elements.sort();
         elements.dedup();
         Relation { elements }
     }
 }
 
-impl<Tuple: Ord, I: IntoIterator<Item = Tuple>> From<I> for Relation<Tuple> {
-    fn from(iterator: I) -> Self {
+impl<Tuple: Ord> From<Vec<Tuple>> for Relation<Tuple> {
+    fn from(iterator: Vec<Tuple>) -> Self {
+        Self::from_vec(iterator)
+    }
+}
+
+impl<Tuple: Ord> FromIterator<Tuple> for Relation<Tuple> {
+    fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = Tuple>,
+    {
         Relation::from_vec(iterator.into_iter().collect())
+    }
+}
+
+impl<'tuple, Tuple: 'tuple + Copy + Ord> FromIterator<&'tuple Tuple> for Relation<Tuple> {
+    fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = &'tuple Tuple>,
+    {
+        Relation::from_vec(iterator.into_iter().cloned().collect())
     }
 }
 
@@ -200,7 +278,22 @@ pub struct Variable<Tuple: Ord> {
 
 // Operator implementations.
 impl<Tuple: Ord> Variable<Tuple> {
-    /// Adds tuples that result from joining `input1` and `input2`.
+    /// Adds tuples that result from joining `input1` and `input2` --
+    /// each of the inputs must be a set of (Key, Value) tuples. Both
+    /// `input1` and `input2` must have the same type of key (`K`) but
+    /// they can have distinct value types (`V1` and `V2`
+    /// respectively). The `logic` closure will be invoked for each
+    /// key that appears in both inputs; it is also given the two
+    /// values, and from those it should construct the resulting
+    /// value.
+    ///
+    /// Note that `input1` must be a variable, but `input2` can be a
+    /// relation or a variable. Therefore, you cannot join two
+    /// relations with this method. This is not because the result
+    /// would be wrong, but because it would be inefficient: the
+    /// result from such a join cannot vary across iterations (as
+    /// relations are fixed), so you should prefer to invoke `insert`
+    /// on a relation created by `Relation::from_join` instead.
     ///
     /// # Examples
     ///
@@ -213,8 +306,8 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x + 1))));
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x + 1, x))));
+    /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
+    /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
     ///
     /// while iteration.changed() {
     ///     variable.from_join(&variable, &variable, |&key, &val1, &val2| (val1, val2));
@@ -223,16 +316,21 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join<'me, K: Ord, V1: Ord, V2: Ord>(
         &self,
-        input1: &Variable<(K, V1)>,
-        input2: &Variable<(K, V2)>,
+        input1: &'me Variable<(K, V1)>,
+        input2: impl JoinInput<'me, (K, V2)>,
         logic: impl FnMut(&K, &V1, &V2) -> Tuple,
     ) {
         join::join_into(input1, input2, self, logic)
     }
 
     /// Adds tuples from `input1` whose key is not present in `input2`.
+    ///
+    /// Note that `input1` must be a variable: if you have a relation
+    /// instead, you can use `Relation::from_antijoin` and then
+    /// `Variable::insert`.  Note that the result will not vary during
+    /// the iteration.
     ///
     /// # Examples
     ///
@@ -245,9 +343,9 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x + 1))));
+    /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
     ///
-    /// let relation = Relation::from((0 .. 10).filter(|x| x % 3 == 0));
+    /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).collect();
     ///
     /// while iteration.changed() {
     ///     variable.from_antijoin(&variable, &relation, |&key, &val| (val, key));
@@ -262,7 +360,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         input2: &Relation<K>,
         logic: impl FnMut(&K, &V) -> Tuple,
     ) {
-        join::antijoin_into(input1, input2, self, logic)
+        self.insert(join::antijoin(input1, input2, logic))
     }
 
     /// Adds tuples that result from mapping `input`.
@@ -279,7 +377,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// let mut iteration = Iteration::new();
     /// let variable = iteration.variable::<(usize, usize)>("source");
-    /// variable.insert(Relation::from((0 .. 10).map(|x| (x, x))));
+    /// variable.extend((0 .. 10).map(|x| (x, x)));
     ///
     /// while iteration.changed() {
     ///     variable.from_map(&variable, |&(key, val)|
@@ -311,8 +409,9 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///   some dynamic variable `source` of source tuples (`SourceTuple`)
     ///   with some set of values (of type `Val`).
     /// - You provide these values by combining `source` with a set of leapers
-    ///   `leapers`, each of which is derived from a fixed relation. You can create
-    ///   a leaper in one of two ways:
+    ///   `leapers`, each of which is derived from a fixed relation. The `leapers`
+    ///   should be either a single leaper (of suitable type) or else a tuple of leapers.
+    ///   You can create a leaper in one of two ways:
     ///   - Extension: In this case, you have a relation of type `(K, Val)` for some
     ///     type `K`. You provide a closure that maps from `SourceTuple` to the key
     ///     `K`. If you use `relation.extend_with`, then any `Val` values the
@@ -325,13 +424,13 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// - Finally, you get a callback `logic` that accepts each `(SourceTuple, Val)`
     ///   that was successfully joined (and not filtered) and which maps to the
     ///   type of this variable.
-    pub fn from_leapjoin<'a, SourceTuple: Ord, Val: Ord + 'a>(
+    pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         &self,
         source: &Variable<SourceTuple>,
-        leapers: &mut [&mut dyn Leaper<'a, SourceTuple, Val>],
+        leapers: impl Leapers<'leap, SourceTuple, Val>,
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) {
-        treefrog::leapjoin_into(source, leapers, self, logic)
+        self.insert(treefrog::leapjoin(&source.recent.borrow(), leapers, logic));
     }
 }
 
@@ -357,6 +456,7 @@ impl<Tuple: Ord> Variable<Tuple> {
             to_add: Rc::new(RefCell::new(Vec::new())),
         }
     }
+
     /// Inserts a relation into the variable.
     ///
     /// This is most commonly used to load initial values into a variable.
@@ -367,6 +467,19 @@ impl<Tuple: Ord> Variable<Tuple> {
             self.to_add.borrow_mut().push(relation);
         }
     }
+
+    /// Extend the variable with values from the iterator.
+    ///
+    /// This is most commonly used to load initial values into a variable.
+    /// it is not obvious that it should be commonly used otherwise, but
+    /// it should not be harmful.
+    pub fn extend<T>(&self, iterator: impl IntoIterator<Item = T>)
+    where
+        Relation<Tuple>: FromIterator<T>,
+    {
+        self.insert(iterator.into_iter().collect());
+    }
+
     /// Consumes the variable and returns a relation.
     ///
     /// This method removes the ability for the variable to develop, and
