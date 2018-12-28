@@ -115,7 +115,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     }
 
     /// Creates a `Relation` using the `leapjoin` logic;
-    /// see [`Variable::leapjoin`]
+    /// see [`Variable::from_leapjoin`]
     pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         source: &Relation<SourceTuple>,
         leapers: impl Leapers<'leap, SourceTuple, Val>,
