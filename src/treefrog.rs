@@ -439,7 +439,7 @@ pub(crate) mod extend_anti {
         }
     }
 
-    impl<'leap, Key: Ord, Val: Ord + 'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>
+    impl<'leap, Key: Ord, Val: Ord + 'leap, Tuple: Ord, Func>
         Leaper<'leap, Tuple, Val> for ExtendAnti<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -589,7 +589,7 @@ pub(crate) mod filter_anti {
         }
     }
 
-    impl<'leap, Key: Ord, Val: Ord + 'leap, Val2, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>
+    impl<'leap, Key: Ord, Val: Ord + 'leap, Val2, Tuple: Ord, Func>
         Leaper<'leap, Tuple, Val2> for FilterAnti<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
