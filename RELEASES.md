@@ -1,3 +1,7 @@
+# 2.0.1
+
+- Work around a rustdoc ICE (#24)
+
 # 2.0.0
 
 - Breaking changes:
