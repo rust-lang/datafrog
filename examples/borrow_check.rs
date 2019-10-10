@@ -1,4 +1,3 @@
-extern crate datafrog;
 use datafrog::Iteration;
 
 type Region = u32;

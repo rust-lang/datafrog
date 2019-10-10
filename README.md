@@ -7,7 +7,6 @@ It tries to help you do this correctly. As an example, here is how you might wri
 query using Datafrog (minus the part where we populate the `nodes` and `edges` initial relations).
 
 ```rust
-extern crate datafrog;
 use datafrog::Iteration;
 
 fn main() {
