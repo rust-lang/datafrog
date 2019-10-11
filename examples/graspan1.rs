@@ -12,9 +12,11 @@ fn main() {
     use std::io::{BufRead, BufReader};
 
     if std::env::args().len() != 2 {
-        eprintln!("Please add a file name.
+        eprintln!(
+            "Please add a file name.
 Each line in this file should be of this format: '<src> <dst> <type>'.
-<src> and <dst> should be u32, <type> should be either 'n' or 'e'.");
+<src> and <dst> should be u32, <type> should be either 'n' or 'e'."
+        );
         return;
     }
 
