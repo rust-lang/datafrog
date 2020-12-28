@@ -19,6 +19,7 @@ use std::rc::Rc;
 
 mod join;
 mod map;
+mod merge;
 mod test;
 mod treefrog;
 pub use crate::join::JoinInput;
