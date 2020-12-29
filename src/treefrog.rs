@@ -233,7 +233,6 @@ pub(crate) mod filters {
             values.retain(|val| (self.predicate)(prefix, val));
         }
     }
-
 }
 
 /// Extension method for relations.
