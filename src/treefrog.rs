@@ -650,7 +650,8 @@ fn binary_search<T>(slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> usize {
     let mut lo = 0;
     while lo < hi {
         let mid = lo + (hi - lo) / 2;
-        if cmp(&slice[mid]) {
+        let el: &T = unsafe { slice.get_unchecked(mid) };
+        if cmp(el) {
             lo = mid + 1;
         } else {
             hi = mid;
