@@ -233,7 +233,6 @@ pub(crate) mod filters {
             values.retain(|val| (self.predicate)(prefix, val));
         }
     }
-
 }
 
 /// Extension method for relations.
@@ -363,7 +362,7 @@ pub(crate) mod extend_with {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key = (self.key_func)(prefix);
-            self.start = binary_search(&self.relation[..], |x| &x.0 < &key);
+            self.start = binary_search(&self.relation.elements, |x| &x.0 < &key);
             let slice1 = &self.relation[self.start..];
             let slice2 = gallop(slice1, |x| &x.0 <= &key);
             self.end = self.relation.len() - slice2.len();
@@ -455,7 +454,7 @@ pub(crate) mod extend_anti {
         }
         fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>) {
             let key = (self.key_func)(prefix);
-            let start = binary_search(&self.relation[..], |x| &x.0 < &key);
+            let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
             let slice1 = &self.relation[start..];
             let slice2 = gallop(slice1, |x| &x.0 <= &key);
             let mut slice = &slice1[..(slice1.len() - slice2.len())];
@@ -643,15 +642,33 @@ pub(crate) mod filter_anti {
     }
 }
 
-fn binary_search<T>(slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> usize {
+/// Returns the lowest index for which `cmp(&vec[i])` returns `true`, assuming `vec` is in sorted
+/// order.
+///
+/// By accepting a vector instead of a slice, we can do a small optimization when computing the
+/// midpoint.
+fn binary_search<T>(vec: &Vec<T>, mut cmp: impl FnMut(&T) -> bool) -> usize {
+    // The midpoint calculation we use below is only correct for vectors with less than `isize::MAX`
+    // elements. This is always true for vectors of sized types but maybe not for ZSTs? Sorting
+    // ZSTs doesn't make much sense, so just forbid it here.
+    assert!(std::mem::size_of::<T>() > 0);
+
     // we maintain the invariant that `lo` many elements of `slice` satisfy `cmp`.
     // `hi` is maintained at the first element we know does not satisfy `cmp`.
 
-    let mut hi = slice.len();
+    let mut hi = vec.len();
     let mut lo = 0;
     while lo < hi {
-        let mid = lo + (hi - lo) / 2;
-        if cmp(&slice[mid]) {
+        // Unlike in the general case, this expression cannot overflow because `Vec` is limited to
+        // `isize::MAX` capacity and we disallow ZSTs above. If we needed to support slices or
+        // vectors of ZSTs, which don't have an upper bound on their size AFAIK, we would need to
+        // use a slightly less efficient version that cannot overflow: `lo + (hi - lo) / 2`.
+        let mid = (hi + lo) / 2;
+
+        // LLVM seems to be unable to prove that `mid` is always less than `vec.len()`, so use
+        // `get_unchecked` to avoid a bounds check since this code is hot.
+        let el: &T = unsafe { vec.get_unchecked(mid) };
+        if cmp(el) {
             lo = mid + 1;
         } else {
             hi = mid;
