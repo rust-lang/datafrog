@@ -12,13 +12,13 @@
 #![forbid(missing_docs)]
 
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::io::Write;
 use std::iter::FromIterator;
 use std::rc::Rc;
 
 mod join;
 mod map;
+mod merge;
 mod test;
 mod treefrog;
 pub use crate::join::JoinInput;
@@ -45,63 +45,7 @@ pub struct Relation<Tuple: Ord> {
 impl<Tuple: Ord> Relation<Tuple> {
     /// Merges two relations into their union.
     pub fn merge(self, other: Self) -> Self {
-        let Relation {
-            elements: mut elements1,
-        } = self;
-        let Relation {
-            elements: mut elements2,
-        } = other;
-
-        // If one of the element lists is zero-length, we don't need to do any work
-        if elements1.is_empty() {
-            return Relation {
-                elements: elements2,
-            };
-        }
-
-        if elements2.is_empty() {
-            return Relation {
-                elements: elements1,
-            };
-        }
-
-        // Make sure that elements1 starts with the lower element
-        // Will not panic since both collections must have at least 1 element at this point
-        if elements1[0] > elements2[0] {
-            std::mem::swap(&mut elements1, &mut elements2);
-        }
-
-        // Fast path for when all the new elements are after the exiting ones
-        if elements1[elements1.len() - 1] < elements2[0] {
-            elements1.extend(elements2.into_iter());
-            // println!("fast path");
-            return Relation {
-                elements: elements1,
-            };
-        }
-
-        let mut elements = Vec::with_capacity(elements1.len() + elements2.len());
-        let mut elements1 = elements1.drain(..);
-        let mut elements2 = elements2.drain(..).peekable();
-
-        elements.push(elements1.next().unwrap());
-        if elements.first() == elements2.peek() {
-            elements2.next();
-        }
-
-        for elem in elements1 {
-            while elements2.peek().map(|x| x.cmp(&elem)) == Some(Ordering::Less) {
-                elements.push(elements2.next().unwrap());
-            }
-            if elements2.peek().map(|x| x.cmp(&elem)) == Some(Ordering::Equal) {
-                elements2.next();
-            }
-            elements.push(elem);
-        }
-
-        // Finish draining second list
-        elements.extend(elements2);
-
+        let elements = merge::merge_unique(self.elements, other.elements);
         Relation { elements }
     }
 
