@@ -48,10 +48,10 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// `input2` and then applying `logic`. Like
     /// [`Variable::from_join`] except for use where the inputs are
     /// not varying across iterations.
-    pub fn from_join<Key: Ord, Val1: Ord, Val2: Ord>(
-        input1: &Relation<(Key, Val1)>,
-        input2: &Relation<(Key, Val2)>,
-        logic: impl FnMut(&Key, &Val1, &Val2) -> Tuple,
+    pub fn from_join<Key: Ord, Value1: Ord, Value2: Ord>(
+        input1: &Relation<(Key, Value1)>,
+        input2: &Relation<(Key, Value2)>,
+        logic: impl FnMut(&Key, &Value1, &Value2) -> Tuple,
     ) -> Self {
         join::join_into_relation(input1, input2, logic)
     }
@@ -61,10 +61,10 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// tuples with the `logic` closure. Like
     /// [`Variable::from_antijoin`] except for use where the inputs
     /// are not varying across iterations.
-    pub fn from_antijoin<Key: Ord, Val1: Ord>(
-        input1: &Relation<(Key, Val1)>,
+    pub fn from_antijoin<Key: Ord, Value1: Ord>(
+        input1: &Relation<(Key, Value1)>,
         input2: &Relation<Key>,
-        logic: impl FnMut(&Key, &Val1) -> Tuple,
+        logic: impl FnMut(&Key, &Value1) -> Tuple,
     ) -> Self {
         join::antijoin(input1, input2, logic)
     }
@@ -72,7 +72,10 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// Construct a new relation by mapping another one. Equivalent to
     /// creating an iterator but perhaps more convenient. Analogous to
     /// `Variable::from_map`.
-    pub fn from_map<T2: Ord>(input: &Relation<T2>, logic: impl FnMut(&T2) -> Tuple) -> Self {
+    pub fn from_map<Tuple2: Ord>(
+        input: &Relation<Tuple2>,
+        logic: impl FnMut(&Tuple2) -> Tuple,
+    ) -> Self {
         input.iter().map(logic).collect()
     }
 
