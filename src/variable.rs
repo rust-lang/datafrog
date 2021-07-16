@@ -53,8 +53,8 @@ pub struct Variable<Tuple: Ord> {
 impl<Tuple: Ord> Variable<Tuple> {
     /// Adds tuples that result from joining `input1` and `input2` --
     /// each of the inputs must be a set of (Key, Value) tuples. Both
-    /// `input1` and `input2` must have the same type of key (`K`) but
-    /// they can have distinct value types (`V1` and `V2`
+    /// `input1` and `input2` must have the same type of key (`Key`) but
+    /// they can have distinct value types (`Value1` and `Value2`
     /// respectively). The `logic` closure will be invoked for each
     /// key that appears in both inputs; it is also given the two
     /// values, and from those it should construct the resulting
@@ -89,11 +89,11 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<'me, K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join<'me, Key: Ord, Value1: Ord, Value2: Ord>(
         &self,
-        input1: &'me Variable<(K, V1)>,
-        input2: impl JoinInput<'me, (K, V2)>,
-        logic: impl FnMut(&K, &V1, &V2) -> Tuple,
+        input1: &'me Variable<(Key, Value1)>,
+        input2: impl JoinInput<'me, (Key, Value2)>,
+        logic: impl FnMut(&Key, &Value1, &Value2) -> Tuple,
     ) {
         join::join_into(input1, input2, self, logic)
     }
@@ -127,11 +127,11 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 16);
     /// ```
-    pub fn from_antijoin<K: Ord, V: Ord>(
+    pub fn from_antijoin<Key: Ord, Value: Ord>(
         &self,
-        input1: &Variable<(K, V)>,
-        input2: &Relation<K>,
-        logic: impl FnMut(&K, &V) -> Tuple,
+        input1: &Variable<(Key, Value)>,
+        input2: &Relation<Key>,
+        logic: impl FnMut(&Key, &Value) -> Tuple,
     ) {
         self.insert(join::antijoin(input1, input2, logic))
     }
@@ -165,7 +165,11 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 74);
     /// ```
-    pub fn from_map<T2: Ord>(&self, input: &Variable<T2>, logic: impl FnMut(&T2) -> Tuple) {
+    pub fn from_map<Tuple2: Ord>(
+        &self,
+        input: &Variable<Tuple2>,
+        logic: impl FnMut(&Tuple2) -> Tuple,
+    ) {
         map::map_into(input, self, logic)
     }
 
@@ -185,14 +189,14 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///   `leapers`, each of which is derived from a fixed relation. The `leapers`
     ///   should be either a single leaper (of suitable type) or else a tuple of leapers.
     ///   You can create a leaper in one of two ways:
-    ///   - Extension: In this case, you have a relation of type `(K, Val)` for some
-    ///     type `K`. You provide a closure that maps from `SourceTuple` to the key
-    ///     `K`. If you use `relation.extend_with`, then any `Val` values the
+    ///   - Extension: In this case, you have a relation of type `(Key, Val)` for some
+    ///     type `Key`. You provide a closure that maps from `SourceTuple` to the key
+    ///     `Key`. If you use `relation.extend_with`, then any `Val` values the
     ///     relation provides will be added to the set of values; if you use
     ///     `extend_anti`, then the `Val` values will be removed.
-    ///   - Filtering: In this case, you have a relation of type `K` for some
-    ///     type `K` and you provide a closure that maps from `SourceTuple` to
-    ///     the key `K`. Filters don't provide values but they remove source
+    ///   - Filtering: In this case, you have a relation of type `Key` for some
+    ///     type `Key` and you provide a closure that maps from `SourceTuple` to
+    ///     the key `Key`. Filters don't provide values but they remove source
     ///     tuples.
     /// - Finally, you get a callback `logic` that accepts each `(SourceTuple, Val)`
     ///   that was successfully joined (and not filtered) and which maps to the
