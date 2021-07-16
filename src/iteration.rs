@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::{Variable, VariableTrait};
+use crate::variable::{Variable, VariableTrait};
 
 /// An iterative context for recursive evaluation.
 ///
