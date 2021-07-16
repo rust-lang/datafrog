@@ -11,8 +11,15 @@ extern crate datafrog;
 use datafrog::Iteration;
 
 fn main() {
+    // Prepare initial values, ..
+    let nodes: Vec<(u32,u32)> = vec![
+        // ..
+    ];
+    let edges: Vec<(u32,u32)> = vec![
+        // ..
+    ];
 
-    // Create a new iteration context, ...
+    // Create a new iteration context, ..
     let mut iteration = Iteration::new();
 
     // .. some variables, ..
@@ -30,7 +37,7 @@ fn main() {
     }
 
     // extract the final results.
-    let reachable: Vec<(u32,u32)> = variable.complete();
+    let reachable: Vec<(u32,u32)> = nodes_var.complete();
 }
 ```
 
