@@ -56,6 +56,24 @@ impl<Tuple: Ord> Relation<Tuple> {
         join::join_into_relation(input1, input2, logic)
     }
 
+    /// Creates a `Relation` by joining the values from `input1` and
+    /// `input2`, through `accessor1` and `accessor2` respectively, and then applying `logic`. Like
+    /// [`Variable::from_join_by`] except for use where the inputs are
+    /// not varying across iterations.
+    pub fn from_join_by<Key: Ord, Tuple1: Ord, Tuple2: Ord, Accessor1, Accessor2>(
+        input1: &Relation<Tuple1>,
+        input2: &Relation<Tuple2>,
+        accessor1: Accessor1,
+        accessor2: Accessor2,
+        logic: impl FnMut(&Tuple1, &Tuple2) -> Tuple,
+    ) -> Self
+    where
+        Accessor1: Fn(&Tuple1) -> &Key,
+        Accessor2: Fn(&Tuple2) -> &Key,
+    {
+        join::join_into_relation_by(input1, input2, accessor1, accessor2, logic)
+    }
+
     /// Creates a `Relation` by removing all values from `input1` that
     /// share a key with `input2`, and then transforming the resulting
     /// tuples with the `logic` closure. Like
@@ -67,6 +85,25 @@ impl<Tuple: Ord> Relation<Tuple> {
         logic: impl FnMut(&Key, &Value1) -> Tuple,
     ) -> Self {
         join::antijoin(input1, input2, logic)
+    }
+
+    /// Creates a `Relation` by removing all values from `input1` that
+    /// share a key with `input2`, through `accessor1` and `accessor2` respectively,
+    /// and then transforming the resulting tuples with the `logic` closure.
+    /// Like [`Variable::from_antijoin_by`] except for use where the inputs
+    /// are not varying across iterations.
+    pub fn from_antijoin_by<Key: Ord, Tuple1: Ord, Tuple2: Ord, Accessor1, Accessor2>(
+        input1: &Relation<Tuple1>,
+        input2: &Relation<Tuple2>,
+        accessor1: Accessor1,
+        accessor2: Accessor2,
+        logic: impl FnMut(&Tuple1) -> Tuple,
+    ) -> Self
+    where
+        Accessor1: Fn(&Tuple1) -> &Key,
+        Accessor2: Fn(&Tuple2) -> &Key,
+    {
+        join::antijoin_by(input1, input2, accessor1, accessor2, logic)
     }
 
     /// Construct a new relation by mapping another one. Equivalent to

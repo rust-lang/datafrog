@@ -98,6 +98,77 @@ impl<Tuple: Ord> Variable<Tuple> {
         join::join_into(input1, input2, self, logic)
     }
 
+    /// Adds tuples that result from joining `input1` and `input2` --
+    /// each of the inputs must be a set of tuples. Both
+    /// `input1` and `input2` must have the same type of key (`Key`)
+    /// when seen through `accessor1` and `accessor2` respectively, but
+    /// they can have distinct value types (`Value1` and `Value2`
+    /// respectively). The `logic` closure will be invoked for each
+    /// key that appears in both inputs; it is also given the two
+    /// values, and from those it should construct the resulting
+    /// value.
+    ///
+    /// Note that `input1` must be a variable, but `input2` can be a
+    /// relation or a variable. Therefore, you cannot join two
+    /// relations with this method. This is not because the result
+    /// would be wrong, but because it would be inefficient: the
+    /// result from such a join cannot vary across iterations (as
+    /// relations are fixed), so you should prefer to invoke `insert`
+    /// on a relation created by `Relation::from_join` instead.
+    ///
+    /// # Examples
+    ///
+    /// This example starts a collection with tuples consisting of a name, a number and a boolean flag.
+    /// It creates a second collection with the names of all tuples whose number is found in the relation
+    /// which should leave us with 2 total tuples.
+    ///
+    /// Notice how we are able to use variables and relations containing tuples of arbitrary arity
+    /// and how we can pick elements as keys that are not at position 0 within the tuple.
+    ///
+    /// ```
+    /// let mut iteration = Iteration::new();
+    ///
+    /// let variable = iteration.variable::<(&'static str, usize, bool)>("variable");
+    ///
+    /// variable.extend(vec![
+    ///     ("Alice", 0, true),
+    ///     ("Bob", 1, false),
+    ///     ("Eve", 2, false),
+    ///     ("Mallory", 3, true),
+    ///     ("Trent", 4, false),
+    /// ]);
+    ///
+    /// let names_with_true = iteration.variable::<&'static str>("names with true");
+    ///
+    /// let relation: Relation<(usize, bool)> = Relation::from_vec(vec![(0, true), (2, false)]);
+    ///
+    /// while iteration.changed() {
+    ///     names_with_true.from_join_by(
+    ///         &variable,
+    ///         &relation,
+    ///         |(_name, number, _flag)| number,
+    ///         |(number, _flag)| number,
+    ///         |(name1, _number1, _flag1), (_number2, _flag2)| name1.clone(),
+    ///     );
+    /// }
+    ///
+    /// let result = names_with_true.complete();
+    /// assert_eq!(result.len(), 2);
+    /// ```
+    pub fn from_join_by<'me, Key: Ord, Tuple1: Ord, Tuple2: Ord, Accessor1, Accessor2>(
+        &self,
+        input1: &'me Variable<Tuple1>,
+        input2: impl JoinInput<'me, Tuple2>,
+        accessor1: Accessor1,
+        accessor2: Accessor2,
+        logic: impl FnMut(&Tuple1, &Tuple2) -> Tuple,
+    ) where
+        Accessor1: Fn(&Tuple1) -> &Key,
+        Accessor2: Fn(&Tuple2) -> &Key,
+    {
+        join::join_into_by(input1, input2, self, accessor1, accessor2, logic)
+    }
+
     /// Adds tuples from `input1` whose key is not present in `input2`.
     ///
     /// Note that `input1` must be a variable: if you have a relation
@@ -134,6 +205,70 @@ impl<Tuple: Ord> Variable<Tuple> {
         logic: impl FnMut(&Key, &Value) -> Tuple,
     ) {
         self.insert(join::antijoin(input1, input2, logic))
+    }
+
+    /// Adds tuples from `input1` whose key is not present in `input2`.
+    ///
+    /// Note that `input1` must be a variable: if you have a relation
+    /// instead, you can use `Relation::from_antijoin` and then
+    /// `Variable::insert`.  Note that the result will not vary during
+    /// the iteration.
+    ///
+    /// # Examples
+    ///
+    /// This example starts a collection with tuples consisting of a name, a number and a boolean flag.
+    /// It creates a second collection with the names of all tuples whose number is not found in the relation
+    /// which should leave us with 3 total tuples.
+    ///
+    /// Notice how we are able to use variables and relations containing tuples of arbitrary arity
+    /// and how we can pick elements as keys that are not at position 0 within the tuple.
+    ///
+    /// ```
+    /// use datafrog::{Iteration, Relation};
+    ///
+    /// let mut iteration = Iteration::new();
+    ///
+    /// let variable = iteration.variable::<(&'static str, usize, bool)>("variable");
+    ///
+    /// variable.extend(vec![
+    ///     ("Alice", 0, true),
+    ///     ("Bob", 1, false),
+    ///     ("Eve", 2, false),
+    ///     ("Mallory", 3, true),
+    ///     ("Trent", 4, false),
+    /// ]);
+    ///
+    /// let names = iteration.variable::<&'static str>("names");
+    ///
+    /// let relation: Relation<(usize, bool)> = Relation::from_vec(vec![(0, true), (2, false)]);
+    ///
+    /// while iteration.changed() {
+    ///     names.from_antijoin_by(
+    ///         &variable,
+    ///         &relation,
+    ///         |(_name, number, _flag)| number,
+    ///         |(number, _flag)| number,
+    ///         |(name, _number, _flag)| name.clone(),
+    ///     );
+    /// }
+    ///
+    /// let result = names.complete();
+    /// assert_eq!(result.len(), 3);
+    /// ```
+    pub fn from_antijoin_by<Key: Ord, Tuple1: Ord, Tuple2: Ord, Accessor1, Accessor2>(
+        &self,
+        input1: &Variable<Tuple1>,
+        input2: &Relation<Tuple2>,
+        accessor1: Accessor1,
+        accessor2: Accessor2,
+        logic: impl FnMut(&Tuple1) -> Tuple,
+    ) where
+        Accessor1: Fn(&Tuple1) -> &Key,
+        Accessor2: Fn(&Tuple2) -> &Key,
+    {
+        self.insert(join::antijoin_by(
+            input1, input2, accessor1, accessor2, logic,
+        ))
     }
 
     /// Adds tuples that result from mapping `input`.
