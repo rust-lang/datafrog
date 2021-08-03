@@ -20,21 +20,17 @@ pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     let recent1 = input1.recent();
     let recent2 = input2.recent();
 
-    {
-        // scoped to let `closure` drop borrow of `results`.
+    let mut closure = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
 
-        let mut closure = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
-
-        for batch2 in input2.stable().iter() {
-            join_helper(&recent1, &batch2, &mut closure);
-        }
-
-        for batch1 in input1.stable().iter() {
-            join_helper(&batch1, &recent2, &mut closure);
-        }
-
-        join_helper(&recent1, &recent2, &mut closure);
+    for batch2 in input2.stable().iter() {
+        join_helper(&recent1, &batch2, &mut closure);
     }
+
+    for batch1 in input1.stable().iter() {
+        join_helper(&batch1, &recent2, &mut closure);
+    }
+
+    join_helper(&recent1, &recent2, &mut closure);
 
     output.insert(Relation::from_vec(results));
 }
