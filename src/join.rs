@@ -16,23 +16,50 @@ pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
 ) {
     let mut results = Vec::new();
+    let push_result = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
 
+    join_delta(input1, input2, push_result);
+
+    output.insert(Relation::from_vec(results));
+}
+
+pub(crate) fn join_and_filter_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
+    input1: &Variable<(Key, Val1)>,
+    input2: impl JoinInput<'me, (Key, Val2)>,
+    output: &Variable<Result>,
+    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Option<Result>,
+) {
+    let mut results = Vec::new();
+    let push_result = |k: &Key, v1: &Val1, v2: &Val2| {
+        if let Some(result) = logic(k, v1, v2) {
+            results.push(result);
+        }
+    };
+
+    join_delta(input1, input2, push_result);
+
+    output.insert(Relation::from_vec(results));
+}
+
+/// Joins the `recent` tuples of each input with the `stable` tuples of the other, then the
+/// `recent` tuples of *both* inputs.
+fn join_delta<'me, Key: Ord, Val1: Ord, Val2: Ord>(
+    input1: &Variable<(Key, Val1)>,
+    input2: impl JoinInput<'me, (Key, Val2)>,
+    mut result: impl FnMut(&Key, &Val1, &Val2),
+) {
     let recent1 = input1.recent();
     let recent2 = input2.recent();
 
-    let mut closure = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
-
     for batch2 in input2.stable().iter() {
-        join_helper(&recent1, &batch2, &mut closure);
+        join_helper(&recent1, &batch2, &mut result);
     }
 
     for batch1 in input1.stable().iter() {
-        join_helper(&batch1, &recent2, &mut closure);
+        join_helper(&batch1, &recent2, &mut result);
     }
 
-    join_helper(&recent1, &recent2, &mut closure);
-
-    output.insert(Relation::from_vec(results));
+    join_helper(&recent1, &recent2, &mut result);
 }
 
 /// Join, but for two relations.

@@ -98,6 +98,50 @@ impl<Tuple: Ord> Variable<Tuple> {
         join::join_into(input1, input2, self, logic)
     }
 
+    /// Same as [`Variable::from_join`], but lets you ignore some of the resulting tuples.
+    ///
+    /// # Examples
+    ///
+    /// This is the same example from `Variable::from_join`, but it filters any tuples where the
+    /// absolute difference is greater than 3. As a result, it generates all pairs (x, y) for x and
+    /// y in 0 .. 11 such that |x - y| <= 3.
+    ///
+    /// ```
+    /// use datafrog::{Iteration, Relation};
+    ///
+    /// let mut iteration = Iteration::new();
+    /// let variable = iteration.variable::<(isize, isize)>("source");
+    /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
+    /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
+    ///
+    /// while iteration.changed() {
+    ///     variable.from_join_filtered(&variable, &variable, |&key, &val1, &val2| {
+    ///        ((val1 - val2).abs() <= 3).then(|| (val1, val2))
+    ///     });
+    /// }
+    ///
+    /// let result = variable.complete();
+    ///
+    /// let mut expected_cnt = 0;
+    /// for i in 0i32..11 {
+    ///     for j in 0i32..11 {
+    ///         if (i - j).abs() <= 3 {
+    ///             expected_cnt += 1;
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// assert_eq!(result.len(), expected_cnt);
+    /// ```
+    pub fn from_join_filtered<'me, K: Ord, V1: Ord, V2: Ord>(
+        &self,
+        input1: &'me Variable<(K, V1)>,
+        input2: impl JoinInput<'me, (K, V2)>,
+        logic: impl FnMut(&K, &V1, &V2) -> Option<Tuple>,
+    ) {
+        join::join_and_filter_into(input1, input2, self, logic)
+    }
+
     /// Adds tuples from `input1` whose key is not present in `input2`.
     ///
     /// Note that `input1` must be a variable: if you have a relation
