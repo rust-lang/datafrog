@@ -330,6 +330,7 @@ pub(crate) mod extend_with {
         start: usize,
         end: usize,
         key_func: Func,
+        old_key: Option<Key>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -347,6 +348,7 @@ pub(crate) mod extend_with {
                 start: 0,
                 end: 0,
                 key_func,
+                old_key: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -362,11 +364,16 @@ pub(crate) mod extend_with {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key = (self.key_func)(prefix);
-            self.start = binary_search(&self.relation.elements, |x| &x.0 < &key);
-            let slice1 = &self.relation[self.start..];
-            let slice2 = gallop(slice1, |x| &x.0 <= &key);
-            self.end = self.relation.len() - slice2.len();
-            slice1.len() - slice2.len()
+            if self.old_key.as_ref() != Some(&key) {
+                self.start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                let slice1 = &self.relation[self.start..];
+                let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                self.end = self.relation.len() - slice2.len();
+
+                self.old_key = Some(key);
+            }
+
+            self.end - self.start
         }
         fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<&'leap Val>) {
             let slice = &self.relation[self.start..self.end];
