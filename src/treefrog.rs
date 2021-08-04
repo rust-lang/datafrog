@@ -412,6 +412,8 @@ pub(crate) mod extend_with {
 }
 
 pub(crate) mod extend_anti {
+    use std::ops::Range;
+
     use super::{binary_search, Leaper, Relation};
     use crate::join::gallop;
 
@@ -425,6 +427,7 @@ pub(crate) mod extend_anti {
     {
         relation: &'leap Relation<(Key, Val)>,
         key_func: Func,
+        old_key: Option<(Key, Range<usize>)>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -440,6 +443,7 @@ pub(crate) mod extend_anti {
             ExtendAnti {
                 relation,
                 key_func,
+                old_key: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -461,10 +465,23 @@ pub(crate) mod extend_anti {
         }
         fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>) {
             let key = (self.key_func)(prefix);
-            let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
-            let slice1 = &self.relation[start..];
-            let slice2 = gallop(slice1, |x| &x.0 <= &key);
-            let mut slice = &slice1[..(slice1.len() - slice2.len())];
+
+            let range = match self.old_key.as_ref() {
+                Some((old, range)) if old == &key => range.clone(),
+
+                _ => {
+                    let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                    let slice1 = &self.relation[start..];
+                    let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                    let range = start..self.relation.len()-slice2.len();
+
+                    self.old_key = Some((key, range.clone()));
+
+                    range
+                }
+            };
+
+            let mut slice = &self.relation[range];
             if !slice.is_empty() {
                 values.retain(|v| {
                     slice = gallop(slice, |kv| &kv.1 < v);
