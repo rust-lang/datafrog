@@ -506,6 +506,7 @@ pub(crate) mod filter_with {
     {
         relation: &'leap Relation<(Key, Val)>,
         key_func: Func,
+        old_key_val: Option<((Key, Val), bool)>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -521,6 +522,7 @@ pub(crate) mod filter_with {
             FilterWith {
                 relation,
                 key_func,
+                old_key_val: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -536,11 +538,16 @@ pub(crate) mod filter_with {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
-            if self.relation.binary_search(&key_val).is_ok() {
-                usize::max_value()
-            } else {
-                0
+
+            if let Some((ref old_key_val, is_present)) = self.old_key_val {
+                if old_key_val == &key_val {
+                    return if is_present { usize::MAX } else { 0 };
+                }
             }
+
+            let is_present = self.relation.binary_search(&key_val).is_ok();
+            self.old_key_val = Some((key_val, is_present));
+            if is_present { usize::MAX } else { 0 }
         }
         fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
             panic!("FilterWith::propose(): variable apparently unbound.");
@@ -592,6 +599,7 @@ pub(crate) mod filter_anti {
     {
         relation: &'leap Relation<(Key, Val)>,
         key_func: Func,
+        old_key_val: Option<((Key, Val), bool)>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -607,6 +615,7 @@ pub(crate) mod filter_anti {
             FilterAnti {
                 relation,
                 key_func,
+                old_key_val: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -622,11 +631,16 @@ pub(crate) mod filter_anti {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
-            if self.relation.binary_search(&key_val).is_ok() {
-                0
-            } else {
-                usize::max_value()
+
+            if let Some((ref old_key_val, is_present)) = self.old_key_val {
+                if old_key_val == &key_val {
+                    return if is_present { 0 } else { usize::MAX };
+                }
             }
+
+            let is_present = self.relation.binary_search(&key_val).is_ok();
+            self.old_key_val = Some((key_val, is_present));
+            if is_present { 0 } else { usize::MAX }
         }
         fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
             panic!("FilterAnti::propose(): variable apparently unbound.");
