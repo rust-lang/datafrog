@@ -193,3 +193,29 @@ fn leapjoin_from_extend() {
 
     assert_eq!(variable.elements, vec![(2, 2), (2, 4)]);
 }
+
+#[test]
+fn passthrough_leaper() {
+    let mut iteration = Iteration::new();
+
+    let variable = iteration.variable::<(u32, u32)>("variable");
+    variable.extend((0..10).map(|i| (i, i)));
+
+    while iteration.changed() {
+        variable.from_leapjoin(
+            &variable,
+            (
+                crate::passthrough(), // Without this, the test would fail at runtime.
+                crate::PrefixFilter::from(|&(i, _)| i <= 20),
+            ),
+            |&(i, j), ()| (2*i, 2*j),
+        );
+    }
+
+    let variable = variable.complete();
+
+    let mut expected: Vec<_> = (0..10).map(|i| (i, i)).collect();
+    expected.extend((10..20).filter_map(|i| (i%2 == 0).then(|| (i, i))));
+    expected.extend((20..=40).filter_map(|i| (i%4 == 0).then(|| (i, i))));
+    assert_eq!(&*variable, &expected);
+}
