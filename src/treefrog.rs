@@ -190,6 +190,53 @@ pub(crate) mod filters {
         }
     }
 
+    pub struct Passthrough<Tuple> {
+        phantom: ::std::marker::PhantomData<Tuple>,
+    }
+
+    impl<Tuple> Passthrough<Tuple> {
+        fn new() -> Self {
+            Passthrough {
+                phantom: ::std::marker::PhantomData,
+            }
+        }
+    }
+
+    impl<'leap, Tuple> Leaper<'leap, Tuple, ()> for Passthrough<Tuple> {
+        /// Estimates the number of proposed values.
+        fn count(&mut self, _prefix: &Tuple) -> usize {
+            1
+        }
+        /// Populates `values` with proposed values.
+        fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<&'leap ()>) {
+            values.push(&())
+        }
+        /// Restricts `values` to proposed values.
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap ()>) {
+            // `Passthrough` never removes values (although if we're here it indicates that the user
+            // didn't need a `Passthrough` in the first place)
+        }
+    }
+
+    /// Returns a leaper that proposes a single copy of each tuple from the main input.
+    ///
+    /// Use this when you don't need any "extend" leapers in a join, only "filter"s. For example,
+    /// in the following datalog rule, all terms in the second and third predicate are bound in the
+    /// first one (the "main input" to our leapjoin).
+    ///
+    /// ```prolog
+    /// error(loan, point) :-
+    ///     origin_contains_loan_at(origin, loan, point), % main input
+    ///     origin_live_at(origin, point),
+    ///     loan_invalidated_at(loan, point).
+    /// ```
+    ///
+    /// Without a passthrough leaper, neither the filter for `origin_live_at` nor the one for
+    /// `loan_invalidated_at` would propose any tuples, and the leapjoin would panic at runtime.
+    pub fn passthrough<Tuple>() -> Passthrough<Tuple> {
+        Passthrough::new()
+    }
+
     /// A treefrog leaper based on a predicate of prefix and value.
     /// Use like `ValueFilter::from(|tuple, value| ...)`. The closure
     /// should return true if `value` ought to be retained. The

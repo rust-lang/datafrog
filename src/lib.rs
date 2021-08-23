@@ -29,7 +29,7 @@ pub use crate::{
         extend_with::ExtendWith,
         filter_anti::FilterAnti,
         filter_with::FilterWith,
-        filters::{PrefixFilter, ValueFilter},
+        filters::{passthrough, PrefixFilter, ValueFilter},
         Leaper, Leapers, RelationLeaper,
     },
     variable::Variable,
