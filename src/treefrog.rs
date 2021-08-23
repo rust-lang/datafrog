@@ -377,6 +377,7 @@ pub(crate) mod extend_with {
         start: usize,
         end: usize,
         key_func: Func,
+        old_key: Option<Key>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -394,6 +395,7 @@ pub(crate) mod extend_with {
                 start: 0,
                 end: 0,
                 key_func,
+                old_key: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -409,11 +411,16 @@ pub(crate) mod extend_with {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key = (self.key_func)(prefix);
-            self.start = binary_search(&self.relation.elements, |x| &x.0 < &key);
-            let slice1 = &self.relation[self.start..];
-            let slice2 = gallop(slice1, |x| &x.0 <= &key);
-            self.end = self.relation.len() - slice2.len();
-            slice1.len() - slice2.len()
+            if self.old_key.as_ref() != Some(&key) {
+                self.start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                let slice1 = &self.relation[self.start..];
+                let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                self.end = self.relation.len() - slice2.len();
+
+                self.old_key = Some(key);
+            }
+
+            self.end - self.start
         }
         fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<&'leap Val>) {
             let slice = &self.relation[self.start..self.end];
@@ -452,6 +459,8 @@ pub(crate) mod extend_with {
 }
 
 pub(crate) mod extend_anti {
+    use std::ops::Range;
+
     use super::{binary_search, Leaper, Relation};
     use crate::join::gallop;
 
@@ -465,6 +474,7 @@ pub(crate) mod extend_anti {
     {
         relation: &'leap Relation<(Key, Val)>,
         key_func: Func,
+        old_key: Option<(Key, Range<usize>)>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -480,6 +490,7 @@ pub(crate) mod extend_anti {
             ExtendAnti {
                 relation,
                 key_func,
+                old_key: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -501,10 +512,23 @@ pub(crate) mod extend_anti {
         }
         fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>) {
             let key = (self.key_func)(prefix);
-            let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
-            let slice1 = &self.relation[start..];
-            let slice2 = gallop(slice1, |x| &x.0 <= &key);
-            let mut slice = &slice1[..(slice1.len() - slice2.len())];
+
+            let range = match self.old_key.as_ref() {
+                Some((old, range)) if old == &key => range.clone(),
+
+                _ => {
+                    let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                    let slice1 = &self.relation[start..];
+                    let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                    let range = start..self.relation.len()-slice2.len();
+
+                    self.old_key = Some((key, range.clone()));
+
+                    range
+                }
+            };
+
+            let mut slice = &self.relation[range];
             if !slice.is_empty() {
                 values.retain(|v| {
                     slice = gallop(slice, |kv| &kv.1 < v);
@@ -529,6 +553,7 @@ pub(crate) mod filter_with {
     {
         relation: &'leap Relation<(Key, Val)>,
         key_func: Func,
+        old_key_val: Option<((Key, Val), bool)>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -544,6 +569,7 @@ pub(crate) mod filter_with {
             FilterWith {
                 relation,
                 key_func,
+                old_key_val: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -559,11 +585,16 @@ pub(crate) mod filter_with {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
-            if self.relation.binary_search(&key_val).is_ok() {
-                usize::max_value()
-            } else {
-                0
+
+            if let Some((ref old_key_val, is_present)) = self.old_key_val {
+                if old_key_val == &key_val {
+                    return if is_present { usize::MAX } else { 0 };
+                }
             }
+
+            let is_present = self.relation.binary_search(&key_val).is_ok();
+            self.old_key_val = Some((key_val, is_present));
+            if is_present { usize::MAX } else { 0 }
         }
         fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
             panic!("FilterWith::propose(): variable apparently unbound.");
@@ -615,6 +646,7 @@ pub(crate) mod filter_anti {
     {
         relation: &'leap Relation<(Key, Val)>,
         key_func: Func,
+        old_key_val: Option<((Key, Val), bool)>,
         phantom: ::std::marker::PhantomData<Tuple>,
     }
 
@@ -630,6 +662,7 @@ pub(crate) mod filter_anti {
             FilterAnti {
                 relation,
                 key_func,
+                old_key_val: None,
                 phantom: ::std::marker::PhantomData,
             }
         }
@@ -645,11 +678,16 @@ pub(crate) mod filter_anti {
     {
         fn count(&mut self, prefix: &Tuple) -> usize {
             let key_val = (self.key_func)(prefix);
-            if self.relation.binary_search(&key_val).is_ok() {
-                0
-            } else {
-                usize::max_value()
+
+            if let Some((ref old_key_val, is_present)) = self.old_key_val {
+                if old_key_val == &key_val {
+                    return if is_present { 0 } else { usize::MAX };
+                }
             }
+
+            let is_present = self.relation.binary_search(&key_val).is_ok();
+            self.old_key_val = Some((key_val, is_present));
+            if is_present { 0 } else { usize::MAX }
         }
         fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
             panic!("FilterAnti::propose(): variable apparently unbound.");
