@@ -86,7 +86,7 @@ fn sum_join_via_var(
     let output = iteration.variable::<(u32, u32)>("output");
 
     while iteration.changed() {
-        // output(K1, V1 * 100 + V2) :- input1(K1, V1), input2(K1, V2).
+        // output(K1, Value1 * 100 + Value2) :- input1(K1, Value1), input2(K1, Value2).
         output.from_join(&input1, &input2, |&k1, &v1, &v2| (k1, v1 * 100 + v2));
     }
 

@@ -9,11 +9,11 @@ use std::ops::Deref;
 /// because relations have no "recent" tuples, so the fn would be a
 /// guaranteed no-op if both arguments were relations.  See also
 /// `join_into_relation`.
-pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
+pub(crate) fn join_into<'me, Key: Ord, Value1: Ord, Value2: Ord, Result: Ord>(
+    input1: &Variable<(Key, Value1)>,
+    input2: impl JoinInput<'me, (Key, Value2)>,
     output: &Variable<Result>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
+    mut logic: impl FnMut(&Key, &Value1, &Value2) -> Result,
 ) {
     let mut results = Vec::new();
 
@@ -23,7 +23,7 @@ pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
     {
         // scoped to let `closure` drop borrow of `results`.
 
-        let mut closure = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
+        let mut closure = |k: &Key, v1: &Value1, v2: &Value2| results.push(logic(k, v1, v2));
 
         for batch2 in input2.stable().iter() {
             join_helper(&recent1, &batch2, &mut closure);
@@ -40,10 +40,10 @@ pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
 }
 
 /// Join, but for two relations.
-pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Relation<(Key, Val1)>,
-    input2: &Relation<(Key, Val2)>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
+pub(crate) fn join_into_relation<'me, Key: Ord, Value1: Ord, Value2: Ord, Result: Ord>(
+    input1: &Relation<(Key, Value1)>,
+    input2: &Relation<(Key, Value2)>,
+    mut logic: impl FnMut(&Key, &Value1, &Value2) -> Result,
 ) -> Relation<Result> {
     let mut results = Vec::new();
 
@@ -75,10 +75,10 @@ pub(crate) fn antijoin<'me, Key: Ord, Val: Ord, Result: Ord>(
     Relation::from_vec(results)
 }
 
-fn join_helper<K: Ord, V1, V2>(
-    mut slice1: &[(K, V1)],
-    mut slice2: &[(K, V2)],
-    mut result: impl FnMut(&K, &V1, &V2),
+fn join_helper<Key: Ord, Value1, Value2>(
+    mut slice1: &[(Key, Value1)],
+    mut slice2: &[(Key, Value2)],
+    mut result: impl FnMut(&Key, &Value1, &Value2),
 ) {
     while !slice1.is_empty() && !slice2.is_empty() {
         use std::cmp::Ordering;
@@ -111,7 +111,7 @@ fn join_helper<K: Ord, V1, V2>(
     }
 }
 
-pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T] {
+pub(crate) fn gallop<Tuple>(mut slice: &[Tuple], mut cmp: impl FnMut(&Tuple) -> bool) -> &[Tuple] {
     // if empty slice, or already >= element, return
     if !slice.is_empty() && cmp(&slice[0]) {
         let mut step = 1;
