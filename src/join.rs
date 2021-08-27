@@ -210,9 +210,14 @@ impl<'me, Tuple: Ord> JoinInput<'me, (Tuple, ())> for &'me Relation<Tuple> {
         assert_eq!(mem::align_of::<(Tuple, ())>(), mem::align_of::<Tuple>());
 
         // SAFETY: https://rust-lang.github.io/unsafe-code-guidelines/layout/structs-and-tuples.html#structs-with-1-zst-fields
-        // guarantees that `T` is layout compatible with `(T, ())`, since `()` is a 1-ZST.
+        // guarantees that `T` is layout compatible with `(T, ())`, since `()` is a 1-ZST. We use
+        // `slice::from_raw_parts` because the layout compatibility guarantee does not extend to
+        // containers like `&[T]`.
         let elements: &'me [Tuple] = self.elements.as_slice();
-        let elements: &'me [(Tuple, ())] = unsafe { std::mem::transmute(elements) };
+        let len = elements.len();
+
+        let elements: &'me [(Tuple, ())] =
+            unsafe { std::slice::from_raw_parts(elements.as_ptr() as *const _, len) };
 
         f(elements)
     }
