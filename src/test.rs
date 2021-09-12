@@ -219,3 +219,14 @@ fn passthrough_leaper() {
     expected.extend((20..=40).filter_map(|i| (i%4 == 0).then(|| (i, i))));
     assert_eq!(&*variable, &expected);
 }
+
+#[test]
+fn relation_from_antijoin() {
+    let lhs: Relation<_> = (0 .. 10).map(|x| (x, x)).collect();
+    let rhs: Relation<_> = (0 .. 10).filter(|x| x % 2 == 0).collect();
+    let expected: Relation<_> = (0 .. 10).filter(|x| x % 2 == 1).map(|x| (x, x)).collect();
+
+    let result = Relation::from_antijoin(&lhs, &rhs, |a, b| (*a, *b));
+
+    assert_eq!(result.elements, expected.elements);
+}
