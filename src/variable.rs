@@ -25,12 +25,12 @@ pub(crate) trait VariableTrait {
 ///
 ///   1. A tuple is added to `self.to_add`, but is not yet visible externally.
 ///   2. Newly added tuples are then promoted to `self.recent` for one iteration.
-///   3. After one iteration, recent tuples are moved to `self.tuples` for posterity.
+///   3. After one iteration, recent tuples are moved to `self.stable` for posterity.
 ///
-/// Each time `self.changed()` is called, the `recent` relation is folded into `tuples`,
-/// and the `to_add` relations are merged, potentially deduplicated against `tuples`, and
+/// Each time `self.changed()` is called, the `recent` relation is folded into `stable`,
+/// and the `to_add` relations are merged, potentially deduplicated against `stable`, and
 /// then made  `recent`. This way, across calls to `changed()` all added tuples are in
-/// `recent` at least once and eventually all are in `tuples`.
+/// `recent` at least once and eventually all are in `stable`.
 ///
 /// A `Variable` may optionally be instructed not to de-duplicate its tuples, for reasons
 /// of performance. Such a variable cannot be relied on to terminate iterative computation,
