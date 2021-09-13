@@ -177,7 +177,7 @@ impl<Tuple: Ord> Variable<Tuple> {
         input2: &Relation<K>,
         logic: impl FnMut(&K, &V) -> Tuple,
     ) {
-        self.insert(join::antijoin(input1, input2, logic))
+        self.insert(join::antijoin(&input1.recent.borrow(), input2, logic))
     }
 
     /// Adds tuples that result from mapping `input`.
