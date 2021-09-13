@@ -1,0 +1,36 @@
+
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.rust == 'nightly' }}
+    strategy:
+      matrix:
+        rust: [beta, nightly]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          profile: minimal
+          override: true
+
+      - name: Build datafrog
+        run: cargo build
+
+      - name: Execute tests
+        run: cargo test
+        
+      - name: Check examples
+        run: cargo check --examples
