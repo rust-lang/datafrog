@@ -11,8 +11,8 @@ use crate::{
 /// A relation represents a fixed set of key-value pairs. In many places in a
 /// Datalog computation we want to be sure that certain relations are not able
 /// to vary (for example, in antijoins).
-#[derive(Clone)]
-pub struct Relation<Tuple: Ord> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Relation<Tuple> {
     /// Sorted list of distinct tuples.
     pub elements: Vec<Tuple>,
 }

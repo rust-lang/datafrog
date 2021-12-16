@@ -36,7 +36,7 @@ pub(crate) trait VariableTrait {
 /// of performance. Such a variable cannot be relied on to terminate iterative computation,
 /// and it is important that any cycle of derivations have at least one de-duplicating
 /// variable on it.
-pub struct Variable<Tuple: Ord> {
+pub struct Variable<Tuple> {
     /// Should the variable be maintained distinctly.
     pub(crate) distinct: bool,
     /// A useful name for the variable.
@@ -251,7 +251,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     }
 }
 
-impl<Tuple: Ord> Clone for Variable<Tuple> {
+impl<Tuple> Clone for Variable<Tuple> {
     fn clone(&self) -> Self {
         Variable {
             distinct: self.distinct,
