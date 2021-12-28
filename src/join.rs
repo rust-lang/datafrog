@@ -158,7 +158,7 @@ pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T
 }
 
 /// An input that can be used with `from_join`; either a `Variable` or a `Relation`.
-pub trait JoinInput<'me, Tuple: Ord>: Copy {
+pub trait JoinInput<'me, Tuple>: Copy {
     /// If we are on iteration N of the loop, these are the tuples
     /// added on iteration N-1. (For a `Relation`, this is always an
     /// empty slice.)
@@ -171,7 +171,7 @@ pub trait JoinInput<'me, Tuple: Ord>: Copy {
     fn for_each_stable_set(self, f: impl FnMut(&[Tuple]));
 }
 
-impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
+impl<'me, Tuple> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
     type RecentTuples = Ref<'me, [Tuple]>;
 
     fn recent(self) -> Self::RecentTuples {
@@ -185,7 +185,7 @@ impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
     }
 }
 
-impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
+impl<'me, Tuple> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
     type RecentTuples = &'me [Tuple];
 
     fn recent(self) -> Self::RecentTuples {
@@ -197,7 +197,7 @@ impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
     }
 }
 
-impl<'me, Tuple: Ord> JoinInput<'me, (Tuple, ())> for &'me Relation<Tuple> {
+impl<'me, Tuple> JoinInput<'me, (Tuple, ())> for &'me Relation<Tuple> {
     type RecentTuples = &'me [(Tuple, ())];
 
     fn recent(self) -> Self::RecentTuples {
