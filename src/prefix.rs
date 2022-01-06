@@ -5,6 +5,9 @@
 /// valid prefix, since `P` must be a tuple.
 pub trait Split<P>: Sized {
     /// The remaining fields after the input has been split.
+    ///
+    /// As a convenience, we unwrap unary tuples, so `<(A, B) as Split<(A,)>::Suffix` is `B`,
+    /// **not** `(B,)`. We cannot do this for `P` itself though, due to overlapping impls.
     type Suffix: Sized;
 
     /// Splits a tuple into a prefix and a suffix.
@@ -19,6 +22,12 @@ pub trait Split<P>: Sized {
     fn suffix(self) -> Self::Suffix {
         self.split().1
     }
+}
+
+macro_rules! fwd {
+    () => { () };
+    ($T:ident) => { $T };
+    ($($T:ident)*) => { ($($T),*) };
 }
 
 macro_rules! rev {
@@ -61,13 +70,15 @@ macro_rules! impls {
         impls!(@imp [$($t)*] [] [$($r)*]);
     };
 
+    (@imp [$($t:ident)?] [$($p:ident)*] [$($r:ident)*]) => {};
+
     (@imp [$($t:ident)+] [$($p:ident)*] [$($r:ident)*]) => {
         impl<$($t),*> Split<rev!($($p)*)> for rev!($($t)*) {
-            type Suffix = ($($r,)*);
+            type Suffix = fwd!($($r)*);
 
             fn split(self) -> (rev!($($p)*), Self::Suffix) {
                 let rev!($($t)*) = self;
-                (rev!($($p)*), ($($r,)*))
+                (rev!($($p)*), fwd!($($r)*))
             }
         }
     };
