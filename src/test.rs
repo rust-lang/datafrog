@@ -2,7 +2,6 @@
 
 use crate::Iteration;
 use crate::Relation;
-use crate::RelationLeaper;
 use proptest::prelude::*;
 use proptest::{proptest, proptest_helper};
 

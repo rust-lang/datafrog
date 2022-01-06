@@ -282,44 +282,9 @@ pub(crate) mod filters {
     }
 }
 
-/// Extension method for relations.
-pub trait RelationLeaper<Key: Ord, Val: Ord> {
+impl<Key: Ord, Val: Ord> Relation<(Key, Val)> {
     /// Extend with `Val` using the elements of the relation.
-    fn extend_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_with::ExtendWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-    /// Extend with `Val` using the complement of the relation.
-    fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_anti::ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-    /// Extend with any value if tuple is present in relation.
-    fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
-        &'leap self,
-        key_func: Func,
-    ) -> filter_with::FilterWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-    /// Extend with any value if tuple is absent from relation.
-    fn filter_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
-        &'leap self,
-        key_func: Func,
-    ) -> filter_anti::FilterAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-}
-
-impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
-    fn extend_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
+    pub fn extend_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
         &'leap self,
         key_func: Func,
     ) -> extend_with::ExtendWith<'leap, Key, Val, Tuple, Func>
@@ -329,7 +294,9 @@ impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
     {
         extend_with::ExtendWith::from(self, key_func)
     }
-    fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
+
+    /// Extend with `Val` using the complement of the relation.
+    pub fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
         &'leap self,
         key_func: Func,
     ) -> extend_anti::ExtendAnti<'leap, Key, Val, Tuple, Func>
@@ -339,7 +306,9 @@ impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
     {
         extend_anti::ExtendAnti::from(self, key_func)
     }
-    fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
+
+    /// Extend with any value if tuple is present in relation.
+    pub fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
         &'leap self,
         key_func: Func,
     ) -> filter_with::FilterWith<'leap, Key, Val, Tuple, Func>
@@ -349,7 +318,9 @@ impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
     {
         filter_with::FilterWith::from(self, key_func)
     }
-    fn filter_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
+
+    /// Extend with any value if tuple is absent from relation.
+    pub fn filter_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
         &'leap self,
         key_func: Func,
     ) -> filter_anti::FilterAnti<'leap, Key, Val, Tuple, Func>

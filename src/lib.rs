@@ -30,7 +30,7 @@ pub use crate::{
         filter_anti::FilterAnti,
         filter_with::FilterWith,
         filters::{passthrough, PrefixFilter, ValueFilter},
-        Leaper, Leapers, RelationLeaper,
+        Leaper, Leapers,
     },
     variable::Variable,
 };
