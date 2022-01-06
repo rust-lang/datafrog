@@ -84,7 +84,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
     ///
     /// while iteration.changed() {
-    ///     variable.from_join(&variable, &variable, |&key, &val1, &val2| (val1, val2));
+    ///     variable.from_join(&variable, &variable, |key: (usize,), val1, val2| (val1, val2));
     /// }
     ///
     /// let result = variable.complete();
@@ -120,7 +120,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
     ///
     /// while iteration.changed() {
-    ///     variable.from_join_filtered(&variable, &variable, |&key, &val1, &val2| {
+    ///     variable.from_join_filtered(&variable, &variable, |key: (isize,), val1, val2| {
     ///        ((val1 - val2).abs() <= 3).then(|| (val1, val2))
     ///     });
     /// }
@@ -171,10 +171,10 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let variable = iteration.variable::<(usize, usize)>("source");
     /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
     ///
-    /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).collect();
+    /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).map(|x| (x,)).collect();
     ///
     /// while iteration.changed() {
-    ///     variable.from_antijoin(&variable, &relation, |&key, &val| (val, key));
+    ///     variable.from_antijoin(&variable, &relation, |(key, val)| (val, key));
     /// }
     ///
     /// let result = variable.complete();
