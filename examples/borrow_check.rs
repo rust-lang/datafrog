@@ -51,7 +51,7 @@ fn main() {
             //   region_live_at(R1, Q),
             //   region_live_at(R2, Q).
 
-            subset_1.from_join(&subset_p, &cfg_edge_p, |_p: (Point,), (r1, r2), q| (r1, q, r2));
+            subset_1.from_join_first(&subset_p, &cfg_edge_p, |_p, (r1, r2), q| (r1, q, r2));
             subset_2.from_join(&subset_1, &region_live_at, |(r1, q), r2, ()| {
                 (r2, q, r1)
             });
@@ -102,7 +102,7 @@ fn main() {
             //   (region_live_at(R, Q); universal_region(R)).
 
             requires_1.from_antijoin(&requires_bp, &killed, |(b, p, r)| (p, b, r));
-            requires_2.from_join(&requires_1, &cfg_edge_p, |_p: (Point,), (b, r), q| (r, q, b));
+            requires_2.from_join_first(&requires_1, &cfg_edge_p, |_p, (b, r), q| (r, q, b));
             requires.from_join(&requires_2, &region_live_at, |(r, q), b, ()| (r, b, q));
         }
 
