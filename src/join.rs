@@ -98,21 +98,26 @@ where
 }
 
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
-pub(crate) fn antijoin<Key: Ord, Val: Ord, Result: Ord>(
-    input1: &Relation<(Key, Val)>,
-    input2: &Relation<Key>,
-    mut logic: impl FnMut(&Key, &Val) -> Result,
-) -> Relation<Result> {
+pub(crate) fn antijoin<P, A, O>(
+    input1: &Relation<A>,
+    input2: &Relation<P>,
+    mut logic: impl FnMut(A) -> O,
+) -> Relation<O>
+where
+    A: Copy + Split<P>,
+    P: Ord,
+    O: Ord,
+{
     let mut tuples2 = &input2[..];
 
     let results = input1
         .elements
         .iter()
-        .filter(|(ref key, _)| {
-            tuples2 = gallop(tuples2, |k| k < key);
-            tuples2.first() != Some(key)
+        .filter(|el| {
+            tuples2 = gallop(tuples2, |p| p < &el.prefix());
+            tuples2.first() != Some(&el.prefix())
         })
-        .map(|(ref key, ref val)| logic(key, val))
+        .map(|&el| logic(el))
         .collect::<Vec<_>>();
 
     Relation::from_vec(results)

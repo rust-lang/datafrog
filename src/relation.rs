@@ -67,11 +67,15 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// tuples with the `logic` closure. Like
     /// [`Variable::from_antijoin`] except for use where the inputs
     /// are not varying across iterations.
-    pub fn from_antijoin<Key: Ord, Val1: Ord>(
-        input1: &Relation<(Key, Val1)>,
-        input2: &Relation<Key>,
-        logic: impl FnMut(&Key, &Val1) -> Tuple,
-    ) -> Self {
+    pub fn from_antijoin<P, A>(
+        input1: &Relation<A>,
+        input2: &Relation<P>,
+        logic: impl FnMut(A) -> Tuple,
+    ) -> Self
+    where
+        P: Ord,
+        A: Copy + Split<P>
+    {
         join::antijoin(input1, input2, logic)
     }
 

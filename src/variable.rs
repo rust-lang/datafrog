@@ -180,12 +180,15 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 16);
     /// ```
-    pub fn from_antijoin<K: Ord, V: Ord>(
+    pub fn from_antijoin<P, A>(
         &self,
-        input1: &Variable<(K, V)>,
-        input2: &Relation<K>,
-        logic: impl FnMut(&K, &V) -> Tuple,
-    ) {
+        input1: &Variable<A>,
+        input2: &Relation<P>,
+        logic: impl FnMut(A) -> Tuple,
+    ) where
+        A: Copy + Split<P>,
+        P: Ord,
+    {
         self.insert(join::antijoin(&input1.recent.borrow(), input2, logic))
     }
 
