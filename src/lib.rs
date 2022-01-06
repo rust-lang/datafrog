@@ -15,6 +15,7 @@ mod iteration;
 mod join;
 mod map;
 mod merge;
+mod prefix;
 mod relation;
 mod test;
 mod treefrog;
@@ -23,6 +24,7 @@ mod variable;
 pub use crate::{
     iteration::Iteration,
     join::JoinInput,
+    prefix::Split,
     relation::Relation,
     treefrog::{
         extend_anti::ExtendAnti,
