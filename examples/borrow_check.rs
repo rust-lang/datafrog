@@ -43,7 +43,7 @@ fn main() {
             // R1: subset(R1, R3, P) :-
             //   subset(R1, R2, P),
             //   subset(R2, R3, P).
-            subset.from_join(&subset_r2p, &subset_r1p, |(_r2, p), (r1,), (r3,)| (r1, r3, p));
+            subset.from_join(&subset_r2p, &subset_r1p, |(_r2, p), r1, r3| (r1, r3, p));
 
             // R2: subset(R1, R2, Q) :-
             //   subset(R1, R2, P),
@@ -51,11 +51,11 @@ fn main() {
             //   region_live_at(R1, Q),
             //   region_live_at(R2, Q).
 
-            subset_1.from_join(&subset_p, &cfg_edge_p, |_p: (Point,), (r1, r2), (q,)| (r1, q, r2));
-            subset_2.from_join(&subset_1, &region_live_at, |(r1, q), (r2,), ()| {
+            subset_1.from_join(&subset_p, &cfg_edge_p, |_p: (Point,), (r1, r2), q| (r1, q, r2));
+            subset_2.from_join(&subset_1, &region_live_at, |(r1, q), r2, ()| {
                 (r2, q, r1)
             });
-            subset.from_join(&subset_2, &region_live_at, |(r2, q), (r1,), ()| (r1, r2, q));
+            subset.from_join(&subset_2, &region_live_at, |(r2, q), r1, ()| (r1, r2, q));
         }
 
         subset_r1p.complete()
@@ -93,7 +93,7 @@ fn main() {
             // requires(R2, B, P) :-
             //   requires(R1, B, P),
             //   subset(R1, R2, P).
-            requires.from_join(&requires_rp, &subset_r1p, |(_r1, p), (b,), (r2,)| (r2, b, p));
+            requires.from_join(&requires_rp, &subset_r1p, |(_r1, p), b, r2| (r2, b, p));
 
             // requires(R, B, Q) :-
             //   requires(R, B, P),
@@ -102,8 +102,8 @@ fn main() {
             //   (region_live_at(R, Q); universal_region(R)).
 
             requires_1.from_antijoin(&requires_bp, &killed, |(b, p, r)| (p, b, r));
-            requires_2.from_join(&requires_1, &cfg_edge_p, |_p: (Point,), (b, r), (q,)| (r, q, b));
-            requires.from_join(&requires_2, &region_live_at, |(r, q), (b,), ()| (r, b, q));
+            requires_2.from_join(&requires_1, &cfg_edge_p, |_p: (Point,), (b, r), q| (r, q, b));
+            requires.from_join(&requires_2, &region_live_at, |(r, q), b, ()| (r, b, q));
         }
 
         requires.complete()
