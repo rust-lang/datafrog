@@ -49,7 +49,7 @@ fn main() {
     // .. and then start iterating rules!
     while iteration.changed() {
         // N(a,c) <-  N(a,b), E(b,c)
-        variable1.from_join(&variable1, &variable2, |_b, &a, &c| (c, a));
+        variable1.from_join_first(&variable1, &variable2, |_b, a, c| (c, a));
     }
 
     let reachable = variable1.complete();

@@ -1,6 +1,6 @@
 //! Join functionality.
 
-use super::{Relation, Variable};
+use super::{Relation, Split, Variable};
 use std::cell::Ref;
 use std::ops::Deref;
 
@@ -9,28 +9,38 @@ use std::ops::Deref;
 /// because relations have no "recent" tuples, so the fn would be a
 /// guaranteed no-op if both arguments were relations.  See also
 /// `join_into_relation`.
-pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
-    output: &Variable<Result>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
-) {
+pub(crate) fn join_into<'me, P, A, B, O>(
+    input1: &Variable<A>,
+    input2: impl JoinInput<'me, B>,
+    output: &Variable<O>,
+    mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> O,
+) where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    O: Ord,
+{
     let mut results = Vec::new();
-    let push_result = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
+    let push_result = |k, v1, v2| results.push(logic(k, v1, v2));
 
     join_delta(input1, input2, push_result);
 
     output.insert(Relation::from_vec(results));
 }
 
-pub(crate) fn join_and_filter_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
-    output: &Variable<Result>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Option<Result>,
-) {
+pub(crate) fn join_and_filter_into<'me, P, A, B, O>(
+    input1: &Variable<A>,
+    input2: impl JoinInput<'me, B>,
+    output: &Variable<O>,
+    mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> Option<O>,
+) where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    O: Ord,
+{
     let mut results = Vec::new();
-    let push_result = |k: &Key, v1: &Val1, v2: &Val2| {
+    let push_result = |k, v1, v2| {
         if let Some(result) = logic(k, v1, v2) {
             results.push(result);
         }
@@ -43,11 +53,15 @@ pub(crate) fn join_and_filter_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: 
 
 /// Joins the `recent` tuples of each input with the `stable` tuples of the other, then the
 /// `recent` tuples of *both* inputs.
-fn join_delta<'me, Key: Ord, Val1: Ord, Val2: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
-    mut result: impl FnMut(&Key, &Val1, &Val2),
-) {
+fn join_delta<'me, P, A, B>(
+    input1: &Variable<A>,
+    input2: impl JoinInput<'me, B>,
+    mut result: impl FnMut(P, A::Suffix, B::Suffix),
+) where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+{
     let recent1 = input1.recent();
     let recent2 = input2.recent();
 
@@ -63,11 +77,17 @@ fn join_delta<'me, Key: Ord, Val1: Ord, Val2: Ord>(
 }
 
 /// Join, but for two relations.
-pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Relation<(Key, Val1)>,
-    input2: &Relation<(Key, Val2)>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
-) -> Relation<Result> {
+pub(crate) fn join_into_relation<P, A, B, O>(
+    input1: &Relation<A>,
+    input2: &Relation<B>,
+    mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> O,
+) -> Relation<O>
+where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    O: Ord,
+{
     let mut results = Vec::new();
 
     join_helper(&input1.elements, &input2.elements, |k, v1, v2| {
@@ -78,48 +98,57 @@ pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Or
 }
 
 /// Moves all recent tuples from `input1` that are not present in `input2` into `output`.
-pub(crate) fn antijoin<Key: Ord, Val: Ord, Result: Ord>(
-    input1: &Relation<(Key, Val)>,
-    input2: &Relation<Key>,
-    mut logic: impl FnMut(&Key, &Val) -> Result,
-) -> Relation<Result> {
+pub(crate) fn antijoin<P, A, O>(
+    input1: &Relation<A>,
+    input2: &Relation<P>,
+    mut logic: impl FnMut(A) -> O,
+) -> Relation<O>
+where
+    A: Copy + Split<P>,
+    P: Ord,
+    O: Ord,
+{
     let mut tuples2 = &input2[..];
 
     let results = input1
         .elements
         .iter()
-        .filter(|(ref key, _)| {
-            tuples2 = gallop(tuples2, |k| k < key);
-            tuples2.first() != Some(key)
+        .filter(|el| {
+            tuples2 = gallop(tuples2, |p| p < &el.prefix());
+            tuples2.first() != Some(&el.prefix())
         })
-        .map(|(ref key, ref val)| logic(key, val))
+        .map(|&el| logic(el))
         .collect::<Vec<_>>();
 
     Relation::from_vec(results)
 }
 
-fn join_helper<K: Ord, V1, V2>(
-    mut slice1: &[(K, V1)],
-    mut slice2: &[(K, V2)],
-    mut result: impl FnMut(&K, &V1, &V2),
-) {
+fn join_helper<P, A, B>(
+    mut slice1: &[A],
+    mut slice2: &[B],
+    mut result: impl FnMut(P, A::Suffix, B::Suffix),
+) where
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    P: Ord,
+{
     while !slice1.is_empty() && !slice2.is_empty() {
         use std::cmp::Ordering;
 
         // If the keys match produce tuples, else advance the smaller key until they might.
-        match slice1[0].0.cmp(&slice2[0].0) {
+        match slice1[0].prefix().cmp(&slice2[0].prefix()) {
             Ordering::Less => {
-                slice1 = gallop(slice1, |x| x.0 < slice2[0].0);
+                slice1 = gallop(slice1, |x| x.prefix() < slice2[0].prefix());
             }
             Ordering::Equal => {
                 // Determine the number of matching keys in each slice.
-                let count1 = slice1.iter().take_while(|x| x.0 == slice1[0].0).count();
-                let count2 = slice2.iter().take_while(|x| x.0 == slice2[0].0).count();
+                let count1 = slice1.iter().take_while(|x| x.prefix() == slice1[0].prefix()).count();
+                let count2 = slice2.iter().take_while(|x| x.prefix() == slice2[0].prefix()).count();
 
                 // Produce results from the cross-product of matches.
                 for index1 in 0..count1 {
                     for s2 in slice2[..count2].iter() {
-                        result(&slice1[0].0, &slice1[index1].1, &s2.1);
+                        result(slice1[0].prefix(), slice1[index1].suffix(), s2.suffix());
                     }
                 }
 
@@ -128,7 +157,7 @@ fn join_helper<K: Ord, V1, V2>(
                 slice2 = &slice2[count2..];
             }
             Ordering::Greater => {
-                slice2 = gallop(slice2, |x| x.0 < slice1[0].0);
+                slice2 = gallop(slice2, |x| x.prefix() < slice1[0].prefix());
             }
         }
     }
@@ -158,7 +187,7 @@ pub(crate) fn gallop<T>(mut slice: &[T], mut cmp: impl FnMut(&T) -> bool) -> &[T
 }
 
 /// An input that can be used with `from_join`; either a `Variable` or a `Relation`.
-pub trait JoinInput<'me, Tuple: Ord>: Copy {
+pub trait JoinInput<'me, Tuple>: Copy {
     /// If we are on iteration N of the loop, these are the tuples
     /// added on iteration N-1. (For a `Relation`, this is always an
     /// empty slice.)
@@ -171,7 +200,7 @@ pub trait JoinInput<'me, Tuple: Ord>: Copy {
     fn for_each_stable_set(self, f: impl FnMut(&[Tuple]));
 }
 
-impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
+impl<'me, Tuple> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
     type RecentTuples = Ref<'me, [Tuple]>;
 
     fn recent(self) -> Self::RecentTuples {
@@ -185,7 +214,7 @@ impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Variable<Tuple> {
     }
 }
 
-impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
+impl<'me, Tuple> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
     type RecentTuples = &'me [Tuple];
 
     fn recent(self) -> Self::RecentTuples {
@@ -194,31 +223,5 @@ impl<'me, Tuple: Ord> JoinInput<'me, Tuple> for &'me Relation<Tuple> {
 
     fn for_each_stable_set(self, mut f: impl FnMut(&[Tuple])) {
         f(&self.elements)
-    }
-}
-
-impl<'me, Tuple: Ord> JoinInput<'me, (Tuple, ())> for &'me Relation<Tuple> {
-    type RecentTuples = &'me [(Tuple, ())];
-
-    fn recent(self) -> Self::RecentTuples {
-        &[]
-    }
-
-    fn for_each_stable_set(self, mut f: impl FnMut(&[(Tuple, ())])) {
-        use std::mem;
-        assert_eq!(mem::size_of::<(Tuple, ())>(), mem::size_of::<Tuple>());
-        assert_eq!(mem::align_of::<(Tuple, ())>(), mem::align_of::<Tuple>());
-
-        // SAFETY: https://rust-lang.github.io/unsafe-code-guidelines/layout/structs-and-tuples.html#structs-with-1-zst-fields
-        // guarantees that `T` is layout compatible with `(T, ())`, since `()` is a 1-ZST. We use
-        // `slice::from_raw_parts` because the layout compatibility guarantee does not extend to
-        // containers like `&[T]`.
-        let elements: &'me [Tuple] = self.elements.as_slice();
-        let len = elements.len();
-
-        let elements: &'me [(Tuple, ())] =
-            unsafe { std::slice::from_raw_parts(elements.as_ptr() as *const _, len) };
-
-        f(elements)
     }
 }

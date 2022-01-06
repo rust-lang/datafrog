@@ -8,6 +8,7 @@ use crate::{
     map,
     relation::Relation,
     treefrog::{self, Leapers},
+    Split,
 };
 
 /// A type that can report on whether it has changed.
@@ -36,7 +37,7 @@ pub(crate) trait VariableTrait {
 /// of performance. Such a variable cannot be relied on to terminate iterative computation,
 /// and it is important that any cycle of derivations have at least one de-duplicating
 /// variable on it.
-pub struct Variable<Tuple: Ord> {
+pub struct Variable<Tuple> {
     /// Should the variable be maintained distinctly.
     pub(crate) distinct: bool,
     /// A useful name for the variable.
@@ -83,19 +84,42 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
     ///
     /// while iteration.changed() {
-    ///     variable.from_join(&variable, &variable, |&key, &val1, &val2| (val1, val2));
+    ///     variable.from_join(&variable, &variable, |key: (usize,), val1, val2| (val1, val2));
     /// }
     ///
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<'me, K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join<'me, P, A, B>(
         &self,
-        input1: &'me Variable<(K, V1)>,
-        input2: impl JoinInput<'me, (K, V2)>,
-        logic: impl FnMut(&K, &V1, &V2) -> Tuple,
-    ) {
+        input1: &'me Variable<A>,
+        input2: impl JoinInput<'me, B>,
+        logic: impl FnMut(P, A::Suffix, B::Suffix) -> Tuple,
+    ) where
+        P: Ord,
+        A: Copy + Split<P>,
+        B: Copy + Split<P>,
+    {
         join::join_into(input1, input2, self, logic)
+    }
+
+    /// An small wrapper around [`Variable::from_join`] that uses the first element of `A` and `B`
+    /// as the shared prefix.
+    ///
+    /// This is useful because `Split` needs a tuple, and working with 1-tuples is a pain.
+    /// It can also help with inference in cases where `logic` does not make use of the shared
+    /// prefix.
+    pub fn from_join_first<'me, P, A, B>(
+        &self,
+        input1: &'me Variable<A>,
+        input2: impl JoinInput<'me, B>,
+        mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> Tuple,
+    ) where
+        P: Ord,
+        A: Copy + Split<(P,)>,
+        B: Copy + Split<(P,)>,
+    {
+        join::join_into(input1, input2, self, |(p,), a, b| logic(p, a, b))
     }
 
     /// Same as [`Variable::from_join`], but lets you ignore some of the resulting tuples.
@@ -115,7 +139,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// variable.extend((0 .. 10).map(|x| (x + 1, x)));
     ///
     /// while iteration.changed() {
-    ///     variable.from_join_filtered(&variable, &variable, |&key, &val1, &val2| {
+    ///     variable.from_join_filtered(&variable, &variable, |key: (isize,), val1, val2| {
     ///        ((val1 - val2).abs() <= 3).then(|| (val1, val2))
     ///     });
     /// }
@@ -133,12 +157,16 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// assert_eq!(result.len(), expected_cnt);
     /// ```
-    pub fn from_join_filtered<'me, K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join_filtered<'me, P, A, B>(
         &self,
-        input1: &'me Variable<(K, V1)>,
-        input2: impl JoinInput<'me, (K, V2)>,
-        logic: impl FnMut(&K, &V1, &V2) -> Option<Tuple>,
-    ) {
+        input1: &'me Variable<A>,
+        input2: impl JoinInput<'me, B>,
+        logic: impl FnMut(P, A::Suffix, B::Suffix) -> Option<Tuple>,
+    ) where
+        P: Ord,
+        A: Copy + Split<P>,
+        B: Copy + Split<P>,
+    {
         join::join_and_filter_into(input1, input2, self, logic)
     }
 
@@ -162,21 +190,24 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let variable = iteration.variable::<(usize, usize)>("source");
     /// variable.extend((0 .. 10).map(|x| (x, x + 1)));
     ///
-    /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).collect();
+    /// let relation: Relation<_> = (0 .. 10).filter(|x| x % 3 == 0).map(|x| (x,)).collect();
     ///
     /// while iteration.changed() {
-    ///     variable.from_antijoin(&variable, &relation, |&key, &val| (val, key));
+    ///     variable.from_antijoin(&variable, &relation, |(key, val)| (val, key));
     /// }
     ///
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 16);
     /// ```
-    pub fn from_antijoin<K: Ord, V: Ord>(
+    pub fn from_antijoin<P, A>(
         &self,
-        input1: &Variable<(K, V)>,
-        input2: &Relation<K>,
-        logic: impl FnMut(&K, &V) -> Tuple,
-    ) {
+        input1: &Variable<A>,
+        input2: &Relation<P>,
+        logic: impl FnMut(A) -> Tuple,
+    ) where
+        A: Copy + Split<P>,
+        P: Ord,
+    {
         self.insert(join::antijoin(&input1.recent.borrow(), input2, logic))
     }
 
@@ -241,17 +272,17 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// - Finally, you get a callback `logic` that accepts each `(SourceTuple, Val)`
     ///   that was successfully joined (and not filtered) and which maps to the
     ///   type of this variable.
-    pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
+    pub fn from_leapjoin<SourceTuple: Ord, Val: Ord>(
         &self,
         source: &Variable<SourceTuple>,
-        leapers: impl Leapers<'leap, SourceTuple, Val>,
+        leapers: impl Leapers<SourceTuple, Val>,
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) {
         self.insert(treefrog::leapjoin(&source.recent.borrow(), leapers, logic));
     }
 }
 
-impl<Tuple: Ord> Clone for Variable<Tuple> {
+impl<Tuple> Clone for Variable<Tuple> {
     fn clone(&self) -> Self {
         Variable {
             distinct: self.distinct,

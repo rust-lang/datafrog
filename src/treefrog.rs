@@ -3,9 +3,9 @@
 use super::Relation;
 
 /// Performs treefrog leapjoin using a list of leapers.
-pub(crate) fn leapjoin<'leap, Tuple: Ord, Val: Ord + 'leap, Result: Ord>(
+pub(crate) fn leapjoin<Tuple: Ord, Val: Ord, Result: Ord>(
     source: &[Tuple],
-    mut leapers: impl Leapers<'leap, Tuple, Val>,
+    mut leapers: impl Leapers<Tuple, Val>,
     mut logic: impl FnMut(&Tuple, &Val) -> Result,
 ) -> Relation<Result> {
     let mut result = Vec::new(); // temp output storage.
@@ -36,7 +36,7 @@ pub(crate) fn leapjoin<'leap, Tuple: Ord, Val: Ord + 'leap, Result: Ord>(
 
             // Push remaining items into result.
             for val in values.drain(..) {
-                result.push(logic(tuple, val));
+                result.push(logic(tuple, &val));
             }
         }
     }
@@ -45,23 +45,23 @@ pub(crate) fn leapjoin<'leap, Tuple: Ord, Val: Ord + 'leap, Result: Ord>(
 }
 
 /// Implemented for a tuple of leapers
-pub trait Leapers<'leap, Tuple, Val> {
+pub trait Leapers<Tuple, Val> {
     /// Internal method:
     fn for_each_count(&mut self, tuple: &Tuple, op: impl FnMut(usize, usize));
 
     /// Internal method:
-    fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'leap Val>);
+    fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<Val>);
 
     /// Internal method:
-    fn intersect(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'leap Val>);
+    fn intersect(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<Val>);
 }
 
 macro_rules! tuple_leapers {
     ($($Ty:ident)*) => {
         #[allow(unused_assignments, non_snake_case)]
-        impl<'leap, Tuple, Val, $($Ty),*> Leapers<'leap, Tuple, Val> for ($($Ty,)*)
+        impl<Tuple, Val, $($Ty),*> Leapers<Tuple, Val> for ($($Ty,)*)
         where
-            $($Ty: Leaper<'leap, Tuple, Val>,)*
+            $($Ty: Leaper<Tuple, Val>,)*
         {
             fn for_each_count(&mut self, tuple: &Tuple, mut op: impl FnMut(usize, usize)) {
                 let ($($Ty,)*) = self;
@@ -73,7 +73,7 @@ macro_rules! tuple_leapers {
                 )*
             }
 
-            fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'leap Val>) {
+            fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<Val>) {
                 let ($($Ty,)*) = self;
                 let mut index = 0;
                 $(
@@ -85,7 +85,7 @@ macro_rules! tuple_leapers {
                     panic!("no match found for min_index={}", min_index);
             }
 
-            fn intersect(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'leap Val>) {
+            fn intersect(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<Val>) {
                 let ($($Ty,)*) = self;
                 let mut index = 0;
                 $(
@@ -107,13 +107,13 @@ tuple_leapers!(A B C D E F);
 tuple_leapers!(A B C D E F G);
 
 /// Methods to support treefrog leapjoin.
-pub trait Leaper<'leap, Tuple, Val> {
+pub trait Leaper<Tuple, Val> {
     /// Estimates the number of proposed values.
     fn count(&mut self, prefix: &Tuple) -> usize;
     /// Populates `values` with proposed values.
-    fn propose(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>);
+    fn propose(&mut self, prefix: &Tuple, values: &mut Vec<Val>);
     /// Restricts `values` to proposed values.
-    fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>);
+    fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<Val>);
 }
 
 pub(crate) mod filters {
@@ -131,7 +131,7 @@ pub(crate) mod filters {
         predicate: Func,
     }
 
-    impl<'leap, Tuple, Func> PrefixFilter<Tuple, Func>
+    impl<Tuple, Func> PrefixFilter<Tuple, Func>
     where
         Func: Fn(&Tuple) -> bool,
     {
@@ -144,7 +144,7 @@ pub(crate) mod filters {
         }
     }
 
-    impl<'leap, Tuple, Val, Func> Leaper<'leap, Tuple, Val> for PrefixFilter<Tuple, Func>
+    impl<Tuple, Val, Func> Leaper<Tuple, Val> for PrefixFilter<Tuple, Func>
     where
         Func: Fn(&Tuple) -> bool,
     {
@@ -157,21 +157,21 @@ pub(crate) mod filters {
             }
         }
         /// Populates `values` with proposed values.
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val>) {
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<Val>) {
             panic!("PrefixFilter::propose(): variable apparently unbound");
         }
         /// Restricts `values` to proposed values.
-        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val>) {
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<Val>) {
             // We can only be here if we returned max_value() above.
         }
     }
 
-    impl<'leap, Tuple, Func> Leapers<'leap, Tuple, ()> for PrefixFilter<Tuple, Func>
+    impl<Tuple, Func> Leapers<Tuple, ()> for PrefixFilter<Tuple, Func>
     where
         Func: Fn(&Tuple) -> bool,
     {
         fn for_each_count(&mut self, tuple: &Tuple, mut op: impl FnMut(usize, usize)) {
-            if <Self as Leaper<'_, Tuple, ()>>::count(self, tuple) == 0 {
+            if <Self as Leaper<Tuple, ()>>::count(self, tuple) == 0 {
                 op(0, 0)
             } else {
                 // we will "propose" the `()` value if the predicate applies
@@ -179,12 +179,12 @@ pub(crate) mod filters {
             }
         }
 
-        fn propose(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<&'leap ()>) {
+        fn propose(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<()>) {
             assert_eq!(min_index, 0);
-            values.push(&());
+            values.push(());
         }
 
-        fn intersect(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<&'leap ()>) {
+        fn intersect(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<()>) {
             assert_eq!(min_index, 0);
             assert_eq!(values.len(), 1);
         }
@@ -202,17 +202,17 @@ pub(crate) mod filters {
         }
     }
 
-    impl<'leap, Tuple> Leaper<'leap, Tuple, ()> for Passthrough<Tuple> {
+    impl<Tuple> Leaper<Tuple, ()> for Passthrough<Tuple> {
         /// Estimates the number of proposed values.
         fn count(&mut self, _prefix: &Tuple) -> usize {
             1
         }
         /// Populates `values` with proposed values.
-        fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<&'leap ()>) {
-            values.push(&())
+        fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<()>) {
+            values.push(())
         }
         /// Restricts `values` to proposed values.
-        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap ()>) {
+        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<()>) {
             // `Passthrough` never removes values (although if we're here it indicates that the user
             // didn't need a `Passthrough` in the first place)
         }
@@ -250,7 +250,7 @@ pub(crate) mod filters {
         predicate: Func,
     }
 
-    impl<'leap, Tuple, Val, Func> ValueFilter<Tuple, Val, Func>
+    impl<Tuple, Val, Func> ValueFilter<Tuple, Val, Func>
     where
         Func: Fn(&Tuple, &Val) -> bool,
     {
@@ -263,7 +263,7 @@ pub(crate) mod filters {
         }
     }
 
-    impl<'leap, Tuple, Val, Func> Leaper<'leap, Tuple, Val> for ValueFilter<Tuple, Val, Func>
+    impl<Tuple, Val, Func> Leaper<Tuple, Val> for ValueFilter<Tuple, Val, Func>
     where
         Func: Fn(&Tuple, &Val) -> bool,
     {
@@ -272,90 +272,82 @@ pub(crate) mod filters {
             usize::max_value()
         }
         /// Populates `values` with proposed values.
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val>) {
+        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<Val>) {
             panic!("PrefixFilter::propose(): variable apparently unbound");
         }
         /// Restricts `values` to proposed values.
-        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>) {
+        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<Val>) {
             values.retain(|val| (self.predicate)(prefix, val));
         }
     }
 }
 
-/// Extension method for relations.
-pub trait RelationLeaper<Key: Ord, Val: Ord> {
-    /// Extend with `Val` using the elements of the relation.
-    fn extend_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_with::ExtendWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-    /// Extend with `Val` using the complement of the relation.
-    fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_anti::ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-    /// Extend with any value if tuple is present in relation.
-    fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
-        &'leap self,
-        key_func: Func,
-    ) -> filter_with::FilterWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-    /// Extend with any value if tuple is absent from relation.
-    fn filter_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
-        &'leap self,
-        key_func: Func,
-    ) -> filter_anti::FilterAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap;
-}
-
-impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
-    fn extend_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_with::ExtendWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap,
+impl<T: Ord + Copy> Relation<T> {
+    /// Extend with `<T as Split<P>>::Suffix` using the elements of the relation.
+    ///
+    /// This leaper proposes all tuples in `self` that have as a prefix the key extracted from the
+    /// source tuple via `key_func`.
+    ///
+    /// This leaper is analagous to a join: it finds all sets of tuples in the source and in
+    /// the underlying relation that have a shared prefix of type `P`, and for each shared prefix
+    /// generates the cartesian product of the two sets.
+    pub fn extend_with<P, F, S>(&self, key_func: F) -> extend_with::ExtendWith<'_, P, T, F>
+        where F: Fn(&S) -> P // These bounds aren't necessary and could be deferred.
+                             // They help with closure inference, however (see rust#41078).
     {
         extend_with::ExtendWith::from(self, key_func)
     }
-    fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_anti::ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap,
+
+    /// Extend with `<T as Split<P>>::Suffix` using the complement of the relation.
+    ///
+    /// This leaper *removes* proposed values when
+    ///   * `key_func(src)` matches the prefix (`P`) of a tuple in this relation,
+    ///   * *AND* the proposed value matches the suffix of that same tuple.
+    ///
+    /// It is used when a negative atom depends on a variable that is proposed by another leaper.
+    /// For example:
+    ///
+    /// ```prolog
+    /// var_init_at(V, Q) :-
+    ///     var_init_at(V, P),   /* leapjoin source */
+    ///     cfg_edge(P, Q),      /* extend_with     */
+    ///     !var_moved_at(V, Q). /* extend_anti     */
+    /// ```
+    ///
+    /// For each source tuple in `var_init_at`, `cfg_edge` will propose some number of CFG nodes
+    /// (`Q`). The `!var_moved_at` atom should be expressed as `extend_anti(|(v, _p)| v)`. That is,
+    /// it extracts `V` from the source tuple (the prefix), and eliminates proposed tuples with
+    /// that prefix whose suffix is `Q`.
+    ///
+    /// **FIXME:** The fact that `P` determines both the prefix (in the source) *and* the suffix (the
+    /// proposed value) is more restrictive than necessary. You could imagine a more complex program
+    /// where the proposed value contains more information than we need for the negative atom.
+    ///
+    /// ```prolog
+    /// x(A, B2, C2) :-
+    ///   x(A, B1, C1),     /* leapjoin source     */
+    ///   t(B1, C1, B2, C2) /* Proposes `(B2, C2)` */
+    ///   !f(A, B2).        /* Doesn't use `C2`!   */
+    /// ```
+    ///
+    /// That would require a separate `val_func` (in addition to `key_func`) to extract the
+    /// relevant part of the proposed value.
+    pub fn extend_anti<P, F, S>(&self, key_func: F) -> extend_anti::ExtendAnti<'_, P, T, F>
+        where F: Fn(&S) -> P
     {
         extend_anti::ExtendAnti::from(self, key_func)
     }
-    fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
-        &'leap self,
-        key_func: Func,
-    ) -> filter_with::FilterWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap,
+
+    /// Extend with any value if tuple is present in relation.
+    pub fn filter_with<F, S>(&self, key_func: F) -> filter_with::FilterWith<'_, T, F>
+        where F: Fn(&S) -> T
     {
         filter_with::FilterWith::from(self, key_func)
     }
-    fn filter_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
-        &'leap self,
-        key_func: Func,
-    ) -> filter_anti::FilterAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap,
+
+    /// Extend with any value if tuple is absent from relation.
+    pub fn filter_anti<F, S>(&self, key_func: F) -> filter_anti::FilterAnti<'_, T, F>
+        where F: Fn(&S) -> T
     {
         filter_anti::FilterAnti::from(self, key_func)
     }
@@ -364,57 +356,38 @@ impl<Key: Ord, Val: Ord> RelationLeaper<Key, Val> for Relation<(Key, Val)> {
 pub(crate) mod extend_with {
     use super::{binary_search, Leaper, Leapers, Relation};
     use crate::join::gallop;
+    use crate::Split;
 
-    /// Wraps a Relation<Tuple> as a leaper.
-    pub struct ExtendWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
-    {
-        relation: &'leap Relation<(Key, Val)>,
+    /// Wraps a `Relation<T>` as a leaper that proposes all values who have as a prefix the key
+    /// extracted from the source tuple.
+    pub struct ExtendWith<'a, P, T, F> {
+        relation: &'a Relation<T>,
         start: usize,
         end: usize,
-        key_func: Func,
-        old_key: Option<Key>,
-        phantom: ::std::marker::PhantomData<Tuple>,
+        old_key: Option<P>,
+        key_func: F,
     }
 
-    impl<'leap, Key, Val, Tuple, Func> ExtendWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
-    {
-        /// Constructs a ExtendWith from a relation and key and value function.
-        pub fn from(relation: &'leap Relation<(Key, Val)>, key_func: Func) -> Self {
-            ExtendWith {
-                relation,
-                start: 0,
-                end: 0,
-                key_func,
-                old_key: None,
-                phantom: ::std::marker::PhantomData,
-            }
+    impl<'a, P, T, F> ExtendWith<'a, P, T, F> {
+        /// Constructs an `ExtendWith` from a `Relation` and a key function.
+        pub fn from(relation: &'a Relation<T>, key_func: F) -> Self {
+            ExtendWith { relation, start: 0, end: 0, old_key: None, key_func }
         }
     }
 
-    impl<'leap, Key, Val, Tuple, Func> Leaper<'leap, Tuple, Val>
-        for ExtendWith<'leap, Key, Val, Tuple, Func>
+    impl<P, T, S, F> Leaper<S, T::Suffix> for ExtendWith<'_, P, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
+        T: Copy + Split<P>,
+        P: Ord,
+        T::Suffix: Ord,
+        F: Fn(&S) -> P,
     {
-        fn count(&mut self, prefix: &Tuple) -> usize {
-            let key = (self.key_func)(prefix);
+        fn count(&mut self, src: &S) -> usize {
+            let key = (self.key_func)(src);
             if self.old_key.as_ref() != Some(&key) {
-                self.start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                self.start = binary_search(&self.relation.elements, |x| &x.prefix() < &key);
                 let slice1 = &self.relation[self.start..];
-                let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                let slice2 = gallop(slice1, |x| &x.prefix() <= &key);
                 self.end = self.relation.len() - slice2.len();
 
                 self.old_key = Some(key);
@@ -422,37 +395,36 @@ pub(crate) mod extend_with {
 
             self.end - self.start
         }
-        fn propose(&mut self, _prefix: &Tuple, values: &mut Vec<&'leap Val>) {
+
+        fn propose(&mut self, _src: &S, values: &mut Vec<T::Suffix>) {
             let slice = &self.relation[self.start..self.end];
-            values.extend(slice.iter().map(|&(_, ref val)| val));
+            values.extend(slice.iter().map(|val| val.suffix()));
         }
-        fn intersect(&mut self, _prefix: &Tuple, values: &mut Vec<&'leap Val>) {
+
+        fn intersect(&mut self, _src: &S, values: &mut Vec<T::Suffix>) {
             let mut slice = &self.relation[self.start..self.end];
             values.retain(|v| {
-                slice = gallop(slice, |kv| &kv.1 < v);
-                slice.get(0).map(|kv| &kv.1) == Some(v)
+                slice = gallop(slice, |kv| &kv.suffix() < v);
+                slice.get(0).map(|kv| kv.suffix()).as_ref() == Some(v)
             });
         }
     }
 
-    impl<'leap, Key, Val, Tuple, Func> Leapers<'leap, Tuple, Val>
-        for ExtendWith<'leap, Key, Val, Tuple, Func>
+    impl<P, T, S, F> Leapers<S, T::Suffix> for ExtendWith<'_, P, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
+        T: Split<P>,
+        Self: Leaper<S, T::Suffix>,
     {
-        fn for_each_count(&mut self, tuple: &Tuple, mut op: impl FnMut(usize, usize)) {
+        fn for_each_count(&mut self, tuple: &S, mut op: impl FnMut(usize, usize)) {
             op(0, self.count(tuple))
         }
 
-        fn propose(&mut self, tuple: &Tuple, min_index: usize, values: &mut Vec<&'leap Val>) {
+        fn propose(&mut self, tuple: &S, min_index: usize, values: &mut Vec<T::Suffix>) {
             assert_eq!(min_index, 0);
             Leaper::propose(self, tuple, values);
         }
 
-        fn intersect(&mut self, _: &Tuple, min_index: usize, _: &mut Vec<&'leap Val>) {
+        fn intersect(&mut self, _: &S, min_index: usize, _: &mut Vec<T::Suffix>) {
             assert_eq!(min_index, 0);
         }
     }
@@ -463,63 +435,45 @@ pub(crate) mod extend_anti {
 
     use super::{binary_search, Leaper, Relation};
     use crate::join::gallop;
+    use crate::Split;
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
-    {
-        relation: &'leap Relation<(Key, Val)>,
-        key_func: Func,
-        old_key: Option<(Key, Range<usize>)>,
-        phantom: ::std::marker::PhantomData<Tuple>,
+    pub struct ExtendAnti<'a, P, T, F> {
+        relation: &'a Relation<T>,
+        key_func: F,
+        old_key: Option<(P, Range<usize>)>,
     }
 
-    impl<'leap, Key, Val, Tuple, Func> ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
-    {
+    impl<'a, P, T, F> ExtendAnti<'a, P, T, F> {
         /// Constructs a ExtendAnti from a relation and key and value function.
-        pub fn from(relation: &'leap Relation<(Key, Val)>, key_func: Func) -> Self {
-            ExtendAnti {
-                relation,
-                key_func,
-                old_key: None,
-                phantom: ::std::marker::PhantomData,
-            }
+        pub fn from(relation: &'a Relation<T>, key_func: F) -> Self {
+            ExtendAnti { relation, key_func, old_key: None }
         }
     }
 
-    impl<'leap, Key: Ord, Val: Ord + 'leap, Tuple: Ord, Func> Leaper<'leap, Tuple, Val>
-        for ExtendAnti<'leap, Key, Val, Tuple, Func>
+    impl<P, T, S, F> Leaper<S, T::Suffix> for ExtendAnti<'_, P, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
+        T: Copy + Split<P>,
+        P: Ord,
+        T::Suffix: Ord,
+        F: Fn(&S) -> P,
     {
-        fn count(&mut self, _prefix: &Tuple) -> usize {
+        fn count(&mut self, _prefix: &S) -> usize {
             usize::max_value()
         }
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val>) {
+        fn propose(&mut self, _prefix: &S, _values: &mut Vec<T::Suffix>) {
             panic!("ExtendAnti::propose(): variable apparently unbound.");
         }
-        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<&'leap Val>) {
+        fn intersect(&mut self, prefix: &S, values: &mut Vec<T::Suffix>) {
             let key = (self.key_func)(prefix);
 
             let range = match self.old_key.as_ref() {
                 Some((old, range)) if old == &key => range.clone(),
 
                 _ => {
-                    let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                    let start = binary_search(&self.relation.elements, |x| &x.prefix() < &key);
                     let slice1 = &self.relation[start..];
-                    let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                    let slice2 = gallop(slice1, |x| &x.prefix() <= &key);
                     let range = start..self.relation.len()-slice2.len();
 
                     self.old_key = Some((key, range.clone()));
@@ -531,8 +485,8 @@ pub(crate) mod extend_anti {
             let mut slice = &self.relation[range];
             if !slice.is_empty() {
                 values.retain(|v| {
-                    slice = gallop(slice, |kv| &kv.1 < v);
-                    slice.get(0).map(|kv| &kv.1) != Some(v)
+                    slice = gallop(slice, |kv| &kv.suffix() < v);
+                    slice.get(0).map(|kv| kv.suffix()).as_ref() != Some(v)
                 });
             }
         }
@@ -544,46 +498,26 @@ pub(crate) mod filter_with {
     use super::{Leaper, Leapers, Relation};
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct FilterWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
-    {
-        relation: &'leap Relation<(Key, Val)>,
-        key_func: Func,
-        old_key_val: Option<((Key, Val), bool)>,
-        phantom: ::std::marker::PhantomData<Tuple>,
+    pub struct FilterWith<'a, T, F> {
+        relation: &'a Relation<T>,
+        key_func: F,
+        old_key_val: Option<(T, bool)>,
     }
 
-    impl<'leap, Key, Val, Tuple, Func> FilterWith<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
-    {
+    impl<'a, T, F> FilterWith<'a, T, F> {
         /// Constructs a FilterWith from a relation and key and value function.
-        pub fn from(relation: &'leap Relation<(Key, Val)>, key_func: Func) -> Self {
-            FilterWith {
-                relation,
-                key_func,
-                old_key_val: None,
-                phantom: ::std::marker::PhantomData,
-            }
+        pub fn from(relation: &'a Relation<T>, key_func: F) -> Self {
+            FilterWith { relation, key_func, old_key_val: None }
         }
     }
 
-    impl<'leap, Key, Val, Val2, Tuple, Func> Leaper<'leap, Tuple, Val2>
-        for FilterWith<'leap, Key, Val, Tuple, Func>
+    impl<T, S, F, X> Leaper<S, X> for FilterWith<'_, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
+        T: Ord,
+        S: Ord,
+        F: Fn(&S) -> T,
     {
-        fn count(&mut self, prefix: &Tuple) -> usize {
+        fn count(&mut self, prefix: &S) -> usize {
             let key_val = (self.key_func)(prefix);
 
             if let Some((ref old_key_val, is_present)) = self.old_key_val {
@@ -596,36 +530,32 @@ pub(crate) mod filter_with {
             self.old_key_val = Some((key_val, is_present));
             if is_present { usize::MAX } else { 0 }
         }
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
+        fn propose(&mut self, _prefix: &S, _values: &mut Vec<X>) {
             panic!("FilterWith::propose(): variable apparently unbound.");
         }
-        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
+        fn intersect(&mut self, _prefix: &S, _values: &mut Vec<X>) {
             // Only here because we didn't return zero above, right?
         }
     }
 
-    impl<'leap, Key, Val, Tuple, Func> Leapers<'leap, Tuple, ()>
-        for FilterWith<'leap, Key, Val, Tuple, Func>
+    impl<T, S, F> Leapers<S, ()> for FilterWith<'_, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
+        Self: Leaper<S, ()>,
     {
-        fn for_each_count(&mut self, tuple: &Tuple, mut op: impl FnMut(usize, usize)) {
-            if <Self as Leaper<Tuple, ()>>::count(self, tuple) == 0 {
+        fn for_each_count(&mut self, tuple: &S, mut op: impl FnMut(usize, usize)) {
+            if <Self as Leaper<S, ()>>::count(self, tuple) == 0 {
                 op(0, 0)
             } else {
                 op(0, 1)
             }
         }
 
-        fn propose(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<&'leap ()>) {
+        fn propose(&mut self, _: &S, min_index: usize, values: &mut Vec<()>) {
             assert_eq!(min_index, 0);
-            values.push(&());
+            values.push(());
         }
 
-        fn intersect(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<&'leap ()>) {
+        fn intersect(&mut self, _: &S, min_index: usize, values: &mut Vec<()>) {
             assert_eq!(min_index, 0);
             assert_eq!(values.len(), 1);
         }
@@ -633,50 +563,33 @@ pub(crate) mod filter_with {
 }
 
 pub(crate) mod filter_anti {
-
     use super::{Leaper, Leapers, Relation};
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct FilterAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
-    {
-        relation: &'leap Relation<(Key, Val)>,
-        key_func: Func,
-        old_key_val: Option<((Key, Val), bool)>,
-        phantom: ::std::marker::PhantomData<Tuple>,
+    pub struct FilterAnti<'a, T, F> {
+        relation: &'a Relation<T>,
+        key_func: F,
+        old_key_val: Option<(T, bool)>,
     }
 
-    impl<'leap, Key, Val, Tuple, Func> FilterAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
-    {
+    impl<'a, T, F> FilterAnti<'a, T, F> {
         /// Constructs a FilterAnti from a relation and key and value function.
-        pub fn from(relation: &'leap Relation<(Key, Val)>, key_func: Func) -> Self {
+        pub fn from(relation: &'a Relation<T>, key_func: F) -> Self {
             FilterAnti {
                 relation,
                 key_func,
                 old_key_val: None,
-                phantom: ::std::marker::PhantomData,
             }
         }
     }
 
-    impl<'leap, Key: Ord, Val: Ord + 'leap, Val2, Tuple: Ord, Func> Leaper<'leap, Tuple, Val2>
-        for FilterAnti<'leap, Key, Val, Tuple, Func>
+    impl<T, S, F, X> Leaper<S, X> for FilterAnti<'_, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
+        T: Ord,
+        S: Ord,
+        F: Fn(&S) -> T,
     {
-        fn count(&mut self, prefix: &Tuple) -> usize {
+        fn count(&mut self, prefix: &S) -> usize {
             let key_val = (self.key_func)(prefix);
 
             if let Some((ref old_key_val, is_present)) = self.old_key_val {
@@ -689,37 +602,33 @@ pub(crate) mod filter_anti {
             self.old_key_val = Some((key_val, is_present));
             if is_present { 0 } else { usize::MAX }
         }
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
+        fn propose(&mut self, _prefix: &S, _values: &mut Vec<X>) {
             panic!("FilterAnti::propose(): variable apparently unbound.");
         }
-        fn intersect(&mut self, _prefix: &Tuple, _values: &mut Vec<&'leap Val2>) {
+        fn intersect(&mut self, _prefix: &S, _values: &mut Vec<X>) {
             // Only here because we didn't return zero above, right?
         }
     }
 
-    impl<'leap, Key, Val, Tuple, Func> Leapers<'leap, Tuple, ()>
-        for FilterAnti<'leap, Key, Val, Tuple, Func>
+    impl<T, S, F> Leapers<S, ()> for FilterAnti<'_, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> (Key, Val),
+        Self: Leaper<S, ()>,
     {
-        fn for_each_count(&mut self, tuple: &Tuple, mut op: impl FnMut(usize, usize)) {
-            if <Self as Leaper<Tuple, ()>>::count(self, tuple) == 0 {
+        fn for_each_count(&mut self, tuple: &S, mut op: impl FnMut(usize, usize)) {
+            if <Self as Leaper<S, ()>>::count(self, tuple) == 0 {
                 op(0, 0)
             } else {
                 op(0, 1)
             }
         }
 
-        fn propose(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<&'leap ()>) {
+        fn propose(&mut self, _: &S, min_index: usize, values: &mut Vec<()>) {
             // We only get here if `tuple` is *not* a member of `self.relation`
             assert_eq!(min_index, 0);
-            values.push(&());
+            values.push(());
         }
 
-        fn intersect(&mut self, _: &Tuple, min_index: usize, values: &mut Vec<&'leap ()>) {
+        fn intersect(&mut self, _: &S, min_index: usize, values: &mut Vec<()>) {
             // We only get here if `tuple` is not a member of `self.relation`
             assert_eq!(min_index, 0);
             assert_eq!(values.len(), 1);
