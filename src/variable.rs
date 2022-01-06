@@ -103,6 +103,25 @@ impl<Tuple: Ord> Variable<Tuple> {
         join::join_into(input1, input2, self, logic)
     }
 
+    /// An small wrapper around [`Variable::from_join`] that uses the first element of `A` and `B`
+    /// as the shared prefix.
+    ///
+    /// This is useful because `Split` needs a tuple, and working with 1-tuples is a pain.
+    /// It can also help with inference in cases where `logic` does not make use of the shared
+    /// prefix.
+    pub fn from_join_first<'me, P, A, B>(
+        &self,
+        input1: &'me Variable<A>,
+        input2: impl JoinInput<'me, B>,
+        mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> Tuple,
+    ) where
+        P: Ord,
+        A: Copy + Split<(P,)>,
+        B: Copy + Split<(P,)>,
+    {
+        join::join_into(input1, input2, self, |(p,), a, b| logic(p, a, b))
+    }
+
     /// Same as [`Variable::from_join`], but lets you ignore some of the resulting tuples.
     ///
     /// # Examples

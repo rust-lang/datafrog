@@ -62,6 +62,25 @@ impl<Tuple: Ord> Relation<Tuple> {
         join::join_into_relation(input1, input2, logic)
     }
 
+    /// An small wrapper around [`Relation::from_join`] that uses the first element of `A` and `B`
+    /// as the shared prefix.
+    ///
+    /// This is useful because `Split` needs a tuple, and working with 1-tuples is a pain.
+    /// It can also help with inference in cases where `logic` does not make use of the shared
+    /// prefix.
+    pub fn from_join_first<P, A, B>(
+        input1: &Relation<A>,
+        input2: &Relation<B>,
+        mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> Tuple,
+    ) -> Self
+    where
+        P: Ord,
+        A: Copy + Split<(P,)>,
+        B: Copy + Split<(P,)>,
+    {
+        join::join_into_relation(input1, input2, |(p,), a, b| logic(p, a, b))
+    }
+
     /// Creates a `Relation` by removing all values from `input1` that
     /// share a key with `input2`, and then transforming the resulting
     /// tuples with the `logic` closure. Like
