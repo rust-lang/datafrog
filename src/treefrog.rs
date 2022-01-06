@@ -297,17 +297,43 @@ impl<T: Ord + Copy> Relation<T> {
     {
         extend_with::ExtendWith::from(self, key_func)
     }
-}
 
-impl<Key: Ord, Val: Ord> Relation<(Key, Val)> {
-    /// Extend with `Val` using the complement of the relation.
-    pub fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
-        &'leap self,
-        key_func: Func,
-    ) -> extend_anti::ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: 'leap,
-        Val: 'leap,
+    /// Extend with `<T as Split<P>>::Suffix` using the complement of the relation.
+    ///
+    /// This leaper *removes* proposed values when
+    ///   * `key_func(src)` matches the prefix (`P`) of a tuple in this relation,
+    ///   * *AND* the proposed value matches the suffix of that same tuple.
+    ///
+    /// It is used when a negative atom depends on a variable that is proposed by another leaper.
+    /// For example:
+    ///
+    /// ```prolog
+    /// var_init_at(V, Q) :-
+    ///     var_init_at(V, P),   /* leapjoin source */
+    ///     cfg_edge(P, Q),      /* extend_with     */
+    ///     !var_moved_at(V, Q). /* extend_anti     */
+    /// ```
+    ///
+    /// For each source tuple in `var_init_at`, `cfg_edge` will propose some number of CFG nodes
+    /// (`Q`). The `!var_moved_at` atom should be expressed as `extend_anti(|(v, _p)| v)`. That is,
+    /// it extracts `V` from the source tuple (the prefix), and eliminates proposed tuples with
+    /// that prefix whose suffix is `Q`.
+    ///
+    /// **FIXME:** The fact that `P` determines both the prefix (in the source) *and* the suffix (the
+    /// proposed value) is more restrictive than necessary. You could imagine a more complex program
+    /// where the proposed value contains more information than we need for the negative atom.
+    ///
+    /// ```prolog
+    /// x(A, B2, C2) :-
+    ///   x(A, B1, C1),     /* leapjoin source     */
+    ///   t(B1, C1, B2, C2) /* Proposes `(B2, C2)` */
+    ///   !f(A, B2).        /* Doesn't use `C2`!   */
+    /// ```
+    ///
+    /// That would require a separate `val_func` (in addition to `key_func`) to extract the
+    /// relevant part of the proposed value.
+    pub fn extend_anti<P, F, S>(&self, key_func: F) -> extend_anti::ExtendAnti<'_, P, T, F>
+        where F: Fn(&S) -> P
     {
         extend_anti::ExtendAnti::from(self, key_func)
     }
@@ -419,63 +445,45 @@ pub(crate) mod extend_anti {
 
     use super::{binary_search, Leaper, Relation};
     use crate::join::gallop;
+    use crate::Split;
 
     /// Wraps a Relation<Tuple> as a leaper.
-    pub struct ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
-    {
-        relation: &'leap Relation<(Key, Val)>,
-        key_func: Func,
-        old_key: Option<(Key, Range<usize>)>,
-        phantom: ::std::marker::PhantomData<Tuple>,
+    pub struct ExtendAnti<'a, P, T, F> {
+        relation: &'a Relation<T>,
+        key_func: F,
+        old_key: Option<(P, Range<usize>)>,
     }
 
-    impl<'leap, Key, Val, Tuple, Func> ExtendAnti<'leap, Key, Val, Tuple, Func>
-    where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
-    {
+    impl<'a, P, T, F> ExtendAnti<'a, P, T, F> {
         /// Constructs a ExtendAnti from a relation and key and value function.
-        pub fn from(relation: &'leap Relation<(Key, Val)>, key_func: Func) -> Self {
-            ExtendAnti {
-                relation,
-                key_func,
-                old_key: None,
-                phantom: ::std::marker::PhantomData,
-            }
+        pub fn from(relation: &'a Relation<T>, key_func: F) -> Self {
+            ExtendAnti { relation, key_func, old_key: None }
         }
     }
 
-    impl<'leap, Key: Ord, Val: Ord + 'leap, Tuple: Ord, Func> Leaper<Tuple, Val>
-        for ExtendAnti<'leap, Key, Val, Tuple, Func>
+    impl<P, T, S, F> Leaper<S, T::Suffix> for ExtendAnti<'_, P, T, F>
     where
-        Key: Ord + 'leap,
-        Val: Ord + 'leap,
-        Tuple: Ord,
-        Func: Fn(&Tuple) -> Key,
+        T: Copy + Split<P>,
+        P: Ord,
+        T::Suffix: Ord,
+        F: Fn(&S) -> P,
     {
-        fn count(&mut self, _prefix: &Tuple) -> usize {
+        fn count(&mut self, _prefix: &S) -> usize {
             usize::max_value()
         }
-        fn propose(&mut self, _prefix: &Tuple, _values: &mut Vec<Val>) {
+        fn propose(&mut self, _prefix: &S, _values: &mut Vec<T::Suffix>) {
             panic!("ExtendAnti::propose(): variable apparently unbound.");
         }
-        fn intersect(&mut self, prefix: &Tuple, values: &mut Vec<Val>) {
+        fn intersect(&mut self, prefix: &S, values: &mut Vec<T::Suffix>) {
             let key = (self.key_func)(prefix);
 
             let range = match self.old_key.as_ref() {
                 Some((old, range)) if old == &key => range.clone(),
 
                 _ => {
-                    let start = binary_search(&self.relation.elements, |x| &x.0 < &key);
+                    let start = binary_search(&self.relation.elements, |x| &x.prefix() < &key);
                     let slice1 = &self.relation[start..];
-                    let slice2 = gallop(slice1, |x| &x.0 <= &key);
+                    let slice2 = gallop(slice1, |x| &x.prefix() <= &key);
                     let range = start..self.relation.len()-slice2.len();
 
                     self.old_key = Some((key, range.clone()));
@@ -487,8 +495,8 @@ pub(crate) mod extend_anti {
             let mut slice = &self.relation[range];
             if !slice.is_empty() {
                 values.retain(|v| {
-                    slice = gallop(slice, |kv| &kv.1 < v);
-                    slice.get(0).map(|kv| &kv.1) != Some(v)
+                    slice = gallop(slice, |kv| &kv.suffix() < v);
+                    slice.get(0).map(|kv| kv.suffix()).as_ref() != Some(v)
                 });
             }
         }
