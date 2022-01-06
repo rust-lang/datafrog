@@ -1,6 +1,6 @@
 //! Join functionality.
 
-use super::{Relation, Variable};
+use super::{Relation, Split, Variable};
 use std::cell::Ref;
 use std::ops::Deref;
 
@@ -9,28 +9,38 @@ use std::ops::Deref;
 /// because relations have no "recent" tuples, so the fn would be a
 /// guaranteed no-op if both arguments were relations.  See also
 /// `join_into_relation`.
-pub(crate) fn join_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
-    output: &Variable<Result>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
-) {
+pub(crate) fn join_into<'me, P, A, B, O>(
+    input1: &Variable<A>,
+    input2: impl JoinInput<'me, B>,
+    output: &Variable<O>,
+    mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> O,
+) where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    O: Ord,
+{
     let mut results = Vec::new();
-    let push_result = |k: &Key, v1: &Val1, v2: &Val2| results.push(logic(k, v1, v2));
+    let push_result = |k, v1, v2| results.push(logic(k, v1, v2));
 
     join_delta(input1, input2, push_result);
 
     output.insert(Relation::from_vec(results));
 }
 
-pub(crate) fn join_and_filter_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
-    output: &Variable<Result>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Option<Result>,
-) {
+pub(crate) fn join_and_filter_into<'me, P, A, B, O>(
+    input1: &Variable<A>,
+    input2: impl JoinInput<'me, B>,
+    output: &Variable<O>,
+    mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> Option<O>,
+) where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    O: Ord,
+{
     let mut results = Vec::new();
-    let push_result = |k: &Key, v1: &Val1, v2: &Val2| {
+    let push_result = |k, v1, v2| {
         if let Some(result) = logic(k, v1, v2) {
             results.push(result);
         }
@@ -43,11 +53,15 @@ pub(crate) fn join_and_filter_into<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: 
 
 /// Joins the `recent` tuples of each input with the `stable` tuples of the other, then the
 /// `recent` tuples of *both* inputs.
-fn join_delta<'me, Key: Ord, Val1: Ord, Val2: Ord>(
-    input1: &Variable<(Key, Val1)>,
-    input2: impl JoinInput<'me, (Key, Val2)>,
-    mut result: impl FnMut(&Key, &Val1, &Val2),
-) {
+fn join_delta<'me, P, A, B>(
+    input1: &Variable<A>,
+    input2: impl JoinInput<'me, B>,
+    mut result: impl FnMut(P, A::Suffix, B::Suffix),
+) where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+{
     let recent1 = input1.recent();
     let recent2 = input2.recent();
 
@@ -63,11 +77,17 @@ fn join_delta<'me, Key: Ord, Val1: Ord, Val2: Ord>(
 }
 
 /// Join, but for two relations.
-pub(crate) fn join_into_relation<'me, Key: Ord, Val1: Ord, Val2: Ord, Result: Ord>(
-    input1: &Relation<(Key, Val1)>,
-    input2: &Relation<(Key, Val2)>,
-    mut logic: impl FnMut(&Key, &Val1, &Val2) -> Result,
-) -> Relation<Result> {
+pub(crate) fn join_into_relation<P, A, B, O>(
+    input1: &Relation<A>,
+    input2: &Relation<B>,
+    mut logic: impl FnMut(P, A::Suffix, B::Suffix) -> O,
+) -> Relation<O>
+where
+    P: Ord,
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    O: Ord,
+{
     let mut results = Vec::new();
 
     join_helper(&input1.elements, &input2.elements, |k, v1, v2| {
@@ -98,28 +118,32 @@ pub(crate) fn antijoin<Key: Ord, Val: Ord, Result: Ord>(
     Relation::from_vec(results)
 }
 
-fn join_helper<K: Ord, V1, V2>(
-    mut slice1: &[(K, V1)],
-    mut slice2: &[(K, V2)],
-    mut result: impl FnMut(&K, &V1, &V2),
-) {
+fn join_helper<P, A, B>(
+    mut slice1: &[A],
+    mut slice2: &[B],
+    mut result: impl FnMut(P, A::Suffix, B::Suffix),
+) where
+    A: Copy + Split<P>,
+    B: Copy + Split<P>,
+    P: Ord,
+{
     while !slice1.is_empty() && !slice2.is_empty() {
         use std::cmp::Ordering;
 
         // If the keys match produce tuples, else advance the smaller key until they might.
-        match slice1[0].0.cmp(&slice2[0].0) {
+        match slice1[0].prefix().cmp(&slice2[0].prefix()) {
             Ordering::Less => {
-                slice1 = gallop(slice1, |x| x.0 < slice2[0].0);
+                slice1 = gallop(slice1, |x| x.prefix() < slice2[0].prefix());
             }
             Ordering::Equal => {
                 // Determine the number of matching keys in each slice.
-                let count1 = slice1.iter().take_while(|x| x.0 == slice1[0].0).count();
-                let count2 = slice2.iter().take_while(|x| x.0 == slice2[0].0).count();
+                let count1 = slice1.iter().take_while(|x| x.prefix() == slice1[0].prefix()).count();
+                let count2 = slice2.iter().take_while(|x| x.prefix() == slice2[0].prefix()).count();
 
                 // Produce results from the cross-product of matches.
                 for index1 in 0..count1 {
                     for s2 in slice2[..count2].iter() {
-                        result(&slice1[0].0, &slice1[index1].1, &s2.1);
+                        result(slice1[0].prefix(), slice1[index1].suffix(), s2.suffix());
                     }
                 }
 
@@ -128,7 +152,7 @@ fn join_helper<K: Ord, V1, V2>(
                 slice2 = &slice2[count2..];
             }
             Ordering::Greater => {
-                slice2 = gallop(slice2, |x| x.0 < slice1[0].0);
+                slice2 = gallop(slice2, |x| x.prefix() < slice1[0].prefix());
             }
         }
     }

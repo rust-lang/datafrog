@@ -4,6 +4,7 @@ use crate::{
     join,
     merge,
     treefrog::{self, Leapers},
+    Split,
 };
 
 /// A static, ordered list of key-value pairs.
@@ -48,11 +49,16 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// `input2` and then applying `logic`. Like
     /// [`Variable::from_join`] except for use where the inputs are
     /// not varying across iterations.
-    pub fn from_join<Key: Ord, Val1: Ord, Val2: Ord>(
-        input1: &Relation<(Key, Val1)>,
-        input2: &Relation<(Key, Val2)>,
-        logic: impl FnMut(&Key, &Val1, &Val2) -> Tuple,
-    ) -> Self {
+    pub fn from_join<P, A, B>(
+        input1: &Relation<A>,
+        input2: &Relation<B>,
+        logic: impl FnMut(P, A::Suffix, B::Suffix) -> Tuple,
+    ) -> Self
+    where
+        P: Ord,
+        A: Copy + Split<P>,
+        B: Copy + Split<P>,
+    {
         join::join_into_relation(input1, input2, logic)
     }
 

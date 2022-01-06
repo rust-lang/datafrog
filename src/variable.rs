@@ -8,6 +8,7 @@ use crate::{
     map,
     relation::Relation,
     treefrog::{self, Leapers},
+    Split,
 };
 
 /// A type that can report on whether it has changed.
@@ -89,12 +90,16 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// let result = variable.complete();
     /// assert_eq!(result.len(), 121);
     /// ```
-    pub fn from_join<'me, K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join<'me, P, A, B>(
         &self,
-        input1: &'me Variable<(K, V1)>,
-        input2: impl JoinInput<'me, (K, V2)>,
-        logic: impl FnMut(&K, &V1, &V2) -> Tuple,
-    ) {
+        input1: &'me Variable<A>,
+        input2: impl JoinInput<'me, B>,
+        logic: impl FnMut(P, A::Suffix, B::Suffix) -> Tuple,
+    ) where
+        P: Ord,
+        A: Copy + Split<P>,
+        B: Copy + Split<P>,
+    {
         join::join_into(input1, input2, self, logic)
     }
 
@@ -133,12 +138,16 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///
     /// assert_eq!(result.len(), expected_cnt);
     /// ```
-    pub fn from_join_filtered<'me, K: Ord, V1: Ord, V2: Ord>(
+    pub fn from_join_filtered<'me, P, A, B>(
         &self,
-        input1: &'me Variable<(K, V1)>,
-        input2: impl JoinInput<'me, (K, V2)>,
-        logic: impl FnMut(&K, &V1, &V2) -> Option<Tuple>,
-    ) {
+        input1: &'me Variable<A>,
+        input2: impl JoinInput<'me, B>,
+        logic: impl FnMut(P, A::Suffix, B::Suffix) -> Option<Tuple>,
+    ) where
+        P: Ord,
+        A: Copy + Split<P>,
+        B: Copy + Split<P>,
+    {
         join::join_and_filter_into(input1, input2, self, logic)
     }
 
