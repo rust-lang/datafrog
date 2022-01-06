@@ -35,7 +35,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     }
 
     /// Creates a `Relation` using the `leapjoin` logic;
-    /// see [`Variable::from_leapjoin`]
+    /// see [`Variable::from_leapjoin`](crate::Variable::from_leapjoin)
     pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         source: &Relation<SourceTuple>,
         leapers: impl Leapers<'leap, SourceTuple, Val>,
@@ -44,10 +44,9 @@ impl<Tuple: Ord> Relation<Tuple> {
         treefrog::leapjoin(&source.elements, leapers, logic)
     }
 
-    /// Creates a `Relation` by joining the values from `input1` and
-    /// `input2` and then applying `logic`. Like
-    /// [`Variable::from_join`] except for use where the inputs are
-    /// not varying across iterations.
+    /// Creates a `Relation` by joining the values from `input1` and `input2` and then applying
+    /// `logic`. Like [`Variable::from_join`](crate::Variable::from_join) except for use where
+    /// the inputs are not varying across iterations.
     pub fn from_join<Key: Ord, Val1: Ord, Val2: Ord>(
         input1: &Relation<(Key, Val1)>,
         input2: &Relation<(Key, Val2)>,
@@ -56,11 +55,10 @@ impl<Tuple: Ord> Relation<Tuple> {
         join::join_into_relation(input1, input2, logic)
     }
 
-    /// Creates a `Relation` by removing all values from `input1` that
-    /// share a key with `input2`, and then transforming the resulting
-    /// tuples with the `logic` closure. Like
-    /// [`Variable::from_antijoin`] except for use where the inputs
-    /// are not varying across iterations.
+    /// Creates a `Relation` by removing all values from `input1` that share a key with `input2`,
+    /// and then transforming the resulting tuples with the `logic` closure. Like
+    /// [`Variable::from_antijoin`](crate::Variable::from_antijoin) except for use where the
+    /// inputs are not varying across iterations.
     pub fn from_antijoin<Key: Ord, Val1: Ord>(
         input1: &Relation<(Key, Val1)>,
         input2: &Relation<Key>,
