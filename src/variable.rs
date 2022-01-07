@@ -49,6 +49,26 @@ pub struct Variable<Tuple> {
     pub(crate) to_add: Rc<RefCell<Vec<Relation<Tuple>>>>,
 }
 
+impl<Tuple> Variable<Tuple> {
+    /// Returns the name used to create this variable.
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    /// Returns the total number of "stable" tuples in this variable.
+    pub fn num_stable(&self) -> usize {
+        self.stable.borrow().iter().map(|x| x.len()).sum()
+    }
+
+    /// Returns `true` if this variable contains only "stable" tuples.
+    ///
+    /// Calling `Iteration::changed()` on such `Variables` will not change them unless new tuples
+    /// are added.
+    pub fn is_stable(&self) -> bool {
+        self.recent.borrow().is_empty() && self.to_add.borrow().is_empty()
+    }
+}
+
 // Operator implementations.
 impl<Tuple: Ord> Variable<Tuple> {
     /// Adds tuples that result from joining `input1` and `input2` --
@@ -304,8 +324,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     /// asserts that iteration has completed, in that `self.recent` and
     /// `self.to_add` should both be empty.
     pub fn complete(self) -> Relation<Tuple> {
-        assert!(self.recent.borrow().is_empty());
-        assert!(self.to_add.borrow().is_empty());
+        assert!(self.is_stable());
         let mut result: Relation<Tuple> = Vec::new().into();
         while let Some(batch) = self.stable.borrow_mut().pop() {
             result = result.merge(batch);
