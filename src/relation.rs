@@ -11,8 +11,8 @@ use crate::{
 /// A relation represents a fixed set of key-value pairs. In many places in a
 /// Datalog computation we want to be sure that certain relations are not able
 /// to vary (for example, in antijoins).
-#[derive(Clone)]
-pub struct Relation<Tuple: Ord> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Relation<Tuple> {
     /// Sorted list of distinct tuples.
     pub elements: Vec<Tuple>,
 }
@@ -97,7 +97,7 @@ impl<Tuple: Ord> FromIterator<Tuple> for Relation<Tuple> {
     }
 }
 
-impl<'tuple, Tuple: 'tuple + Copy + Ord> FromIterator<&'tuple Tuple> for Relation<Tuple> {
+impl<'tuple, Tuple: 'tuple + Clone + Ord> FromIterator<&'tuple Tuple> for Relation<Tuple> {
     fn from_iter<I>(iterator: I) -> Self
     where
         I: IntoIterator<Item = &'tuple Tuple>,
@@ -106,7 +106,7 @@ impl<'tuple, Tuple: 'tuple + Copy + Ord> FromIterator<&'tuple Tuple> for Relatio
     }
 }
 
-impl<Tuple: Ord> std::ops::Deref for Relation<Tuple> {
+impl<Tuple> std::ops::Deref for Relation<Tuple> {
     type Target = [Tuple];
     fn deref(&self) -> &Self::Target {
         &self.elements[..]
