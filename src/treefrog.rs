@@ -106,7 +106,7 @@ tuple_leapers!(A B C D E);
 tuple_leapers!(A B C D E F);
 tuple_leapers!(A B C D E F G);
 
-/// Methods to support treefrog leapjoin.
+/// Methods to support [treefrog leapjoin](crate::Variable::from_leapjoin).
 pub trait Leaper<'leap, Tuple, Val> {
     /// Estimates the number of proposed values.
     fn count(&mut self, prefix: &Tuple) -> usize;
@@ -367,7 +367,9 @@ pub(crate) mod extend_with {
     use super::{binary_search, Leaper, Leapers, Relation};
     use crate::join::gallop;
 
-    /// Wraps a `Relation<Tuple>` as a leaper that maps each source tuple to a key and adds the relation's corresponding values.
+    /// Wraps a `Relation<Tuple>` as a [`Leaper`] that maps each source tuple to a key and adds the relation's corresponding values.
+    ///
+    /// This struct is created using the [`extend_with`](`crate::RelationLeaper::extend_with`) method on [`Relation`s](Relation).
     pub struct ExtendWith<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -466,7 +468,9 @@ pub(crate) mod extend_anti {
     use super::{binary_search, Leaper, Relation};
     use crate::join::gallop;
 
-    /// Wraps a `Relation<Tuple>` as a leaper that maps each source tuple to a key and removes the relation's corresponding values.
+    /// Wraps a `Relation<Tuple>` as a [`Leaper`] that maps each source tuple to a key and removes the relation's corresponding values.
+    ///
+    /// This struct is created using the [`extend_anti`](`crate::RelationLeaper::extend_anti`) method on [`Relation`s](Relation).
     pub struct ExtendAnti<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -545,7 +549,9 @@ pub(crate) mod filter_with {
 
     use super::{Leaper, Leapers, Relation};
 
-    /// Wraps a `Relation<Tuple>` as a leaper that keeps only source tuples mapping to a key in the relation.
+    /// Wraps a `Relation<Tuple>` as a [`Leaper`] that keeps only source tuples mapping to a key in the relation.
+    ///
+    /// This struct is created using the [`filter_with`](`crate::RelationLeaper::filter_with`) method on [`Relation`s](Relation).
     pub struct FilterWith<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -638,7 +644,9 @@ pub(crate) mod filter_anti {
 
     use super::{Leaper, Leapers, Relation};
 
-    /// Wraps a `Relation<Tuple>` as a leaper that keeps only source tuples not mapping to a key in the relation.
+    /// Wraps a `Relation<Tuple>` as a [`Leaper`] that keeps only source tuples not mapping to a key in the relation.
+    ///
+    /// This struct is created using the [`filter_anti`](`crate::RelationLeaper::filter_anti`) method on [`Relation`s](Relation).
     pub struct FilterAnti<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
