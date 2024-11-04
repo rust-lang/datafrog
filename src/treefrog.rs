@@ -121,11 +121,12 @@ pub(crate) mod filters {
     use super::Leapers;
 
     /// A treefrog leaper that tests each of the tuples from the main
-    /// input (the "prefix"). Use like `PrefixFilter::from(|tuple|
-    /// ...)`; if the closure returns true, then the tuple is
-    /// retained, else it will be ignored. This leaper can be used in
-    /// isolation in which case it just acts like a filter on the
-    /// input (the "proposed value" will be `()` type).
+    /// input (the "prefix") against a predicate.
+    ///
+    /// Use like `PrefixFilter::from(|tuple| ...)`; if the closure returns
+    /// true, then the tuple is retained, else it will be ignored. This
+    /// leaper can be used in isolation in which case it just acts like
+    /// a filter on the input (the "proposed value" will be `()` type).
     pub struct PrefixFilter<Tuple, Func: Fn(&Tuple) -> bool> {
         phantom: ::std::marker::PhantomData<Tuple>,
         predicate: Func,
@@ -238,6 +239,7 @@ pub(crate) mod filters {
     }
 
     /// A treefrog leaper based on a predicate of prefix and value.
+    ///
     /// Use like `ValueFilter::from(|tuple, value| ...)`. The closure
     /// should return true if `value` ought to be retained. The
     /// `value` will be a value proposed elsewhere by an `extend_with`
