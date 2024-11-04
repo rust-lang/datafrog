@@ -365,7 +365,7 @@ pub(crate) mod extend_with {
     use super::{binary_search, Leaper, Leapers, Relation};
     use crate::join::gallop;
 
-    /// Wraps a Relation<Tuple> as a leaper.
+    /// Wraps a `Relation<Tuple>` as a leaper.
     pub struct ExtendWith<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -464,7 +464,7 @@ pub(crate) mod extend_anti {
     use super::{binary_search, Leaper, Relation};
     use crate::join::gallop;
 
-    /// Wraps a Relation<Tuple> as a leaper.
+    /// Wraps a `Relation<Tuple>` as a leaper.
     pub struct ExtendAnti<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -543,7 +543,7 @@ pub(crate) mod filter_with {
 
     use super::{Leaper, Leapers, Relation};
 
-    /// Wraps a Relation<Tuple> as a leaper.
+    /// Wraps a `Relation<Tuple>` as a leaper.
     pub struct FilterWith<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
@@ -636,7 +636,7 @@ pub(crate) mod filter_anti {
 
     use super::{Leaper, Leapers, Relation};
 
-    /// Wraps a Relation<Tuple> as a leaper.
+    /// Wraps a `Relation<Tuple>` as a leaper.
     pub struct FilterAnti<'leap, Key, Val, Tuple, Func>
     where
         Key: Ord + 'leap,
