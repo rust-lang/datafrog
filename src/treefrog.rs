@@ -287,6 +287,8 @@ pub(crate) mod filters {
 /// Extension method for relations.
 pub trait RelationLeaper<Key: Ord, Val: Ord> {
     /// Extend with `Val` using the elements of the relation.
+    ///
+    /// When used in a [leapjoin](`crate::Variable::from_leapjoin`), each source tuple is mapped to a key, the key is looked up in this relation, then all corresponding values are added to the source.
     fn extend_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
         &'leap self,
         key_func: Func,
@@ -295,6 +297,8 @@ pub trait RelationLeaper<Key: Ord, Val: Ord> {
         Key: 'leap,
         Val: 'leap;
     /// Extend with `Val` using the complement of the relation.
+    ///
+    /// When used in a [leapjoin](`crate::Variable::from_leapjoin`), each source tuple is mapped to a key, the key is looked up in this relation, then all corresponding values are removed from the source.
     fn extend_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> Key>(
         &'leap self,
         key_func: Func,
@@ -303,6 +307,8 @@ pub trait RelationLeaper<Key: Ord, Val: Ord> {
         Key: 'leap,
         Val: 'leap;
     /// Extend with any value if tuple is present in relation.
+    ///
+    /// When used in a [leapjoin](`crate::Variable::from_leapjoin`), each source tuple is mapped to a key, then all keys found in the relation are added to the source.
     fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
         &'leap self,
         key_func: Func,
@@ -311,6 +317,8 @@ pub trait RelationLeaper<Key: Ord, Val: Ord> {
         Key: 'leap,
         Val: 'leap;
     /// Extend with any value if tuple is absent from relation.
+    ///
+    /// When used in a [leapjoin](`crate::Variable::from_leapjoin`), each source tuple is mapped to a key, then all keys found in the relation are removed from the source.
     fn filter_anti<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
         &'leap self,
         key_func: Func,
