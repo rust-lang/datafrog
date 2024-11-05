@@ -251,13 +251,13 @@ impl<Tuple: Ord> Variable<Tuple> {
     ///   You can create a leaper in one of two ways:
     ///   - Extension: In this case, you have a relation of type `(K, Val)` for some
     ///     type `K`. You provide a closure that maps from `SourceTuple` to the key
-    ///     `K`. If you use `relation.extend_with`, then any `Val` values the
+    ///     `K`. If you use [`relation.extend_with`](`crate::RelationLeaper::extend_with`), then any `Val` values the
     ///     relation provides will be added to the set of values; if you use
-    ///     `extend_anti`, then the `Val` values will be removed.
+    ///     [`extend_anti`](`crate::RelationLeaper::extend_anti`), then the `Val` values will be removed.
     ///   - Filtering: In this case, you have a relation of type `K` for some
     ///     type `K` and you provide a closure that maps from `SourceTuple` to
     ///     the key `K`. Filters don't provide values but they remove source
-    ///     tuples.
+    ///     tuples. [`filter_with`](`crate::RelationLeaper::filter_with`) retains matching keys, whereas [`filter_anti`](`crate::RelationLeaper::filter_anti`) removes matching keys.
     /// - Finally, you get a callback `logic` that accepts each `(SourceTuple, Val)`
     ///   that was successfully joined (and not filtered) and which maps to the
     ///   type of this variable.
