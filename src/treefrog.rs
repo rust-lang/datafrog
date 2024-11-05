@@ -308,7 +308,7 @@ pub trait RelationLeaper<Key: Ord, Val: Ord> {
         Val: 'leap;
     /// Extend with any value if tuple is present in relation.
     ///
-    /// When used in a [leapjoin](`crate::Variable::from_leapjoin`), each source tuple is mapped to a key, then all keys found in the relation are added to the source.
+    /// When used in a [leapjoin](`crate::Variable::from_leapjoin`), each source tuple is mapped to a key, then only keys found in the relation are kept in the source.
     fn filter_with<'leap, Tuple: Ord, Func: Fn(&Tuple) -> (Key, Val)>(
         &'leap self,
         key_func: Func,
