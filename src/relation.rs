@@ -38,7 +38,7 @@ impl<Tuple: Ord> Relation<Tuple> {
     /// see [`Variable::from_leapjoin`](crate::Variable::from_leapjoin)
     pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         source: &Relation<SourceTuple>,
-        leapers: impl Leapers<'leap, SourceTuple, Val>,
+        leapers: impl Leapers<SourceTuple, &'leap Val>,
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) -> Self {
         treefrog::leapjoin(&source.elements, leapers, logic)
