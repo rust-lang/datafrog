@@ -264,7 +264,7 @@ impl<Tuple: Ord> Variable<Tuple> {
     pub fn from_leapjoin<'leap, SourceTuple: Ord, Val: Ord + 'leap>(
         &self,
         source: &Variable<SourceTuple>,
-        leapers: impl Leapers<'leap, SourceTuple, Val>,
+        leapers: impl Leapers<SourceTuple, &'leap Val>,
         logic: impl FnMut(&SourceTuple, &Val) -> Tuple,
     ) {
         self.insert(treefrog::leapjoin(&source.recent.borrow(), leapers, logic));
